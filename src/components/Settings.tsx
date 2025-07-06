@@ -1,0 +1,480 @@
+import React, { useState } from 'react';
+import { Settings as SettingsIcon, Palette, Tag, CreditCard, Plus, Edit2, Trash2, Users, Upload, Download, FileText, Wifi, WifiOff, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { useSettings } from '../context/SettingsContext';
+import { useFinance } from '../context/FinanceContext';
+import { useAccounts } from '../context/AccountContext';
+import { useAuth } from '../context/AuthContext';
+import { useSupabaseSync } from '../hooks/useSupabaseSync';
+import { Category, Account } from '../types';
+import CategoryForm from './CategoryForm';
+import AccountForm from './AccountForm';
+import UserForm from './UserForm';
+import ImportCSV from './ImportCSV';
+
+const Settings: React.FC = () => {
+  const { settings, updateSettings } = useSettings();
+  const { categories, deleteCategory } = useFinance();
+  const { accounts, deleteAccount } = useAccounts();
+  const { currentUser, users, deleteUser } = useAuth();
+  const { isOnline, syncStatus, lastSyncTime, syncData } = useSupabaseSync();
+  const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const [showAccountForm, setShowAccountForm] = useState(false);
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [categorySearch, setCategorySearch] = useState('');
+  const [accountSearch, setAccountSearch] = useState('');
+
+  const handleThemeToggle = () => {
+    updateSettings({ theme: settings.theme === 'light' ? 'dark' : 'light' });
+  };
+
+  const handleEditCategory = (category: Category) => {
+    setEditingCategory(category);
+    setShowCategoryForm(true);
+  };
+
+  const handleDeleteCategory = (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir esta categoria?')) {
+      deleteCategory(id);
+    }
+  };
+
+  const handleEditAccount = (account: Account) => {
+    setEditingAccount(account);
+    setShowAccountForm(true);
+  };
+
+  const handleDeleteAccount = (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir esta conta?')) {
+      deleteAccount(id);
+    }
+  };
+
+  const handleEditUser = (user: any) => {
+    setEditingUser(user);
+    setShowUserForm(true);
+  };
+
+  const handleDeleteUser = (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir este usuário?')) {
+      deleteUser(id);
+    }
+  };
+
+  const handleCategoryFormClose = () => {
+    setShowCategoryForm(false);
+    setEditingCategory(null);
+  };
+
+  const handleAccountFormClose = () => {
+    setShowAccountForm(false);
+    setEditingAccount(null);
+  };
+
+  const handleUserFormClose = () => {
+    setShowUserForm(false);
+    setEditingUser(null);
+  };
+
+  const expenseCategories = categories.filter(cat => 
+    cat.type === 'expense' && 
+    cat.name.toLowerCase().includes(categorySearch.toLowerCase())
+  );
+  const incomeCategories = categories.filter(cat => 
+    cat.type === 'income' && 
+    cat.name.toLowerCase().includes(categorySearch.toLowerCase())
+  );
+
+  const filteredAccounts = accounts.filter(account =>
+    account.name.toLowerCase().includes(accountSearch.toLowerCase())
+  );
+
+  const getSyncStatusIcon = () => {
+    switch (syncStatus) {
+      case 'syncing':
+        return <Clock className="w-4 h-4 text-blue-500 animate-spin" />;
+      case 'success':
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case 'error':
+        return <AlertCircle className="w-4 h-4 text-red-500" />;
+      default:
+        return isOnline ? <Wifi className="w-4 h-4 text-green-500" /> : <WifiOff className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const getSyncStatusText = () => {
+    switch (syncStatus) {
+      case 'syncing':
+        return 'Sincronizando...';
+      case 'success':
+        return 'Sincronizado';
+      case 'error':
+        return 'Erro na sincronização';
+      default:
+        return isOnline ? 'Online' : 'Offline';
+    }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mb-8">
+        <div className="flex items-center gap-3">
+          <SettingsIcon className="w-8 h-8 text-blue-600" />
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Configurações</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-2">Personalize sua experiência e gerencie dados</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Coluna Esquerda - Configurações Gerais */}
+        <div className="space-y-6">
+          {/* Sincronização */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                  {getSyncStatusIcon()}
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Sincronização</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Status: {getSyncStatusText()}
+                  </p>
+                  {lastSyncTime && (
+                    <p className="text-xs text-gray-500 dark:text-gray-500">
+                      Última sincronização: {lastSyncTime.toLocaleString('pt-BR')}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={syncData}
+                disabled={!isOnline || syncStatus === 'syncing'}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Sincronizar
+              </button>
+            </div>
+          </div>
+
+          {/* Tema */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+                  <Palette className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tema</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Escolha entre tema claro ou escuro
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleThemeToggle}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  settings.theme === 'dark' ? 'bg-blue-600' : 'bg-gray-200'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    settings.theme === 'dark' ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* Importar/Exportar Dados */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-indigo-100 dark:bg-indigo-900 rounded-lg">
+                <FileText className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Dados</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Importe ou exporte seus dados financeiros
+                </p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <button
+                onClick={() => setShowImport(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Upload className="w-4 h-4" />
+                Importar Dados CSV
+              </button>
+              <button
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                onClick={() => {
+                  // Implementar exportação futuramente
+                  alert('Funcionalidade de exportação será implementada em breve');
+                }}
+              >
+                <Download className="w-4 h-4" />
+                Exportar Dados
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Coluna Direita - Gerenciamento */}
+        <div className="space-y-6">
+          {/* Categorias */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                  <Tag className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Categorias</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Gerencie suas categorias de despesas e receitas
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCategoryForm(true)}
+                className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Adicionar
+              </button>
+            </div>
+
+            {/* Search */}
+            <div className="mb-4">
+              <input
+                type="text"
+                placeholder="Buscar categorias..."
+                value={categorySearch}
+                onChange={(e) => setCategorySearch(e.target.value)}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {/* Categorias de Despesas */}
+              <div>
+                <h4 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                  Despesas ({expenseCategories.length})
+                </h4>
+                <div className="space-y-2">
+                  {expenseCategories.map((category) => (
+                    <div key={category.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <span className="text-sm text-gray-900 dark:text-white">{category.name}</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleEditCategory(category)}
+                          className="p-1 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900 rounded transition-colors"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategory(category.id)}
+                          className="p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900 rounded transition-colors"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Categorias de Receitas */}
+              <div>
+                <h4 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  Receitas ({incomeCategories.length})
+                </h4>
+                <div className="space-y-2">
+                  {incomeCategories.map((category) => (
+                    <div key={category.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <span className="text-sm text-gray-900 dark:text-white">{category.name}</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleEditCategory(category)}
+                          className="p-1 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900 rounded transition-colors"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategory(category.id)}
+                          className="p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900 rounded transition-colors"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Contas */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 dark:bg-indigo-900 rounded-lg">
+                  <CreditCard className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Contas</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Gerencie suas contas bancárias e carteiras
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAccountForm(true)}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Adicionar
+              </button>
+            </div>
+
+            {/* Search */}
+            <div className="mb-4">
+              <input
+                type="text"
+                placeholder="Buscar contas..."
+                value={accountSearch}
+                onChange={(e) => setAccountSearch(e.target.value)}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {filteredAccounts.map((account) => (
+                <div key={account.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 bg-indigo-500 rounded-full"></div>
+                    <div>
+                      <span className="font-medium text-gray-900 dark:text-white">{account.name}</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Saldo inicial: R$ {account.initialBalance.toFixed(2).replace('.', ',')}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleEditAccount(account)}
+                      className="p-2 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900 rounded-lg transition-colors"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteAccount(account.id)}
+                      className="p-2 text-red-600 hover:bg-red-100 dark:hover:bg-red-900 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Usuários (apenas para admin) */}
+          {currentUser?.isAdmin && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+                    <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Usuários</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Gerencie usuários do sistema
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowUserForm(true)}
+                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Adicionar
+                </button>
+              </div>
+
+              <div className="space-y-3 max-h-48 overflow-y-auto">
+                {users.map((user) => (
+                  <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                      <div>
+                        <span className="font-medium text-gray-900 dark:text-white">{user.username}</span>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {user.isAdmin ? 'Administrador' : 'Usuário'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEditUser(user)}
+                        className="p-2 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900 rounded-lg transition-colors"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      {user.id !== currentUser.id && (
+                        <button
+                          onClick={() => handleDeleteUser(user.id)}
+                          className="p-2 text-red-600 hover:bg-red-100 dark:hover:bg-red-900 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modals */}
+      {showCategoryForm && (
+        <CategoryForm
+          category={editingCategory}
+          onClose={handleCategoryFormClose}
+        />
+      )}
+
+      {showAccountForm && (
+        <AccountForm
+          account={editingAccount}
+          onClose={handleAccountFormClose}
+        />
+      )}
+
+      {currentUser?.isAdmin && showUserForm && (
+        <UserForm
+          user={editingUser}
+          onClose={handleUserFormClose}
+        />
+      )}
+
+      {showImport && (
+        <ImportCSV onClose={() => setShowImport(false)} />
+      )}
+    </div>
+  );
+};
+
+export default Settings;

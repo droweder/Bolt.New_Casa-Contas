@@ -107,35 +107,49 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (username: string, password: string): Promise<boolean> => {
     console.log('🔐 Tentativa de login:', { username, password });
     
+    // Primeiro, verificar autenticação local
+    const localUser = users.find(user => 
+      user.username === username && user.password === password
+    );
+
+    if (!localUser) {
+      console.log('❌ Credenciais locais inválidas');
+      return false;
+    }
+
+    console.log('✅ Autenticação local bem-sucedida');
+    
+    // Definir usuário atual com dados locais
+    let authenticatedUser = { ...localUser };
+    let token = `local-token-${Date.now()}`;
+
+    // Tentar autenticação com Supabase de forma não-bloqueante
     try {
-      // Tentar autenticação com Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
         email: `${username}@finance.local`, // Usar email fictício baseado no username
         password: password,
       });
 
       if (data.user && !error) {
-        // Autenticação Supabase bem-sucedida
-        const user: User = {
-          id: data.user.id,
-          username: username,
-          password: password,
-          isAdmin: username === 'admin',
-          createdAt: new Date().toISOString(),
+        // Autenticação Supabase bem-sucedida - atualizar com dados do Supabase
+        authenticatedUser = {
+          ...localUser,
+          id: data.user.id, // Usar ID do Supabase para sincronização
         };
-        
-        setCurrentUser(user);
-        setAuthToken(data.session?.access_token || null);
-        console.log('🎉 Login Supabase realizado com sucesso!');
-        return true;
+        token = data.session?.access_token || token;
+        console.log('🎉 Login Supabase também realizado com sucesso!');
       } else {
-        console.log('❌ Falha na autenticação Supabase:', error?.message);
-        return false;
+        console.log('⚠️ Falha na autenticação Supabase (continuando com local):', error?.message);
       }
     } catch (supabaseError: any) {
-      console.log('⚠️ Erro na autenticação Supabase:', supabaseError?.message);
-      return false;
+      console.log('⚠️ Erro na autenticação Supabase (continuando com local):', supabaseError?.message);
     }
+    
+    // Definir usuário autenticado (local ou Supabase)
+    setCurrentUser(authenticatedUser);
+    setAuthToken(token);
+    console.log('🎉 Login realizado com sucesso!');
+    return true;
   };
 
   const logout = async () => {

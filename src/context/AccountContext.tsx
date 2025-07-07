@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Account } from '../types';
+import { supabase } from '../lib/supabase';
 
 interface AccountContextType {
   accounts: Account[];
@@ -24,6 +25,28 @@ interface AccountProviderProps {
 
 export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) => {
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
+
+  // Check Supabase connection
+  useEffect(() => {
+    const checkSupabaseConnection = async () => {
+      try {
+        const { data, error } = await supabase.from('accounts').select('count').limit(1);
+        if (!error) {
+          setIsSupabaseConnected(true);
+          console.log('✅ Supabase conectado para contas');
+        } else {
+          setIsSupabaseConnected(false);
+          console.log('❌ Supabase desconectado para contas:', error.message);
+        }
+      } catch (error) {
+        setIsSupabaseConnected(false);
+        console.log('❌ Erro ao verificar conexão Supabase para contas:', error);
+      }
+    };
+
+    checkSupabaseConnection();
+  }, []);
 
   useEffect(() => {
     const savedAccounts = localStorage.getItem('finance-accounts');
@@ -47,23 +70,81 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     localStorage.setItem('finance-accounts', JSON.stringify(accounts));
   }, [accounts]);
 
-  const addAccount = (account: Omit<Account, 'id' | 'createdAt'>) => {
+  // Helper function to get current user ID
+  const getCurrentUserId = () => {
+    const currentUser = JSON.parse(localStorage.getItem('finance-current-user') || 'null');
+    return currentUser?.id || 'local-user';
+  };
+
+  // Helper function to sync to Supabase
+  const syncToSupabase = async (data: any) => {
+    if (!isSupabaseConnected) return;
+    
+    try {
+      const { error } = await supabase.from('accounts').upsert(data);
+      if (error) {
+        console.error('❌ Erro ao sincronizar conta:', error);
+      } else {
+        console.log('✅ Conta sincronizada com sucesso');
+      }
+    } catch (error) {
+      console.error('❌ Erro na sincronização da conta:', error);
+    }
+  };
+
+  const addAccount = async (account: Omit<Account, 'id' | 'createdAt'>) => {
     const newAccount: Account = {
       ...account,
       id: Date.now().toString(),
       createdAt: new Date().toISOString(),
     };
     setAccounts(prev => [...prev, newAccount]);
+
+    // Sync to Supabase immediately
+    await syncToSupabase({
+      id: newAccount.id,
+      name: newAccount.name,
+      initial_balance: newAccount.initialBalance,
+      user_id: getCurrentUserId(),
+      created_at: newAccount.createdAt,
+    });
   };
 
-  const updateAccount = (id: string, updatedAccount: Partial<Account>) => {
+  const updateAccount = async (id: string, updatedAccount: Partial<Account>) => {
     setAccounts(prev => prev.map(account => 
       account.id === id ? { ...account, ...updatedAccount } : account
     ));
+
+    // Find the updated account and sync to Supabase
+    const account = accounts.find(a => a.id === id);
+    if (account && isSupabaseConnected) {
+      const updatedData = { ...account, ...updatedAccount };
+      await syncToSupabase({
+        id: updatedData.id,
+        name: updatedData.name,
+        initial_balance: updatedData.initialBalance,
+        user_id: getCurrentUserId(),
+        created_at: updatedData.createdAt,
+      });
+    }
   };
 
-  const deleteAccount = (id: string) => {
+  const deleteAccount = async (id: string) => {
     setAccounts(prev => prev.filter(account => account.id !== id));
+
+    // Delete from Supabase
+    if (isSupabaseConnected) {
+      try {
+        const { error } = await supabase.from('accounts').delete().eq('id', id);
+        if (error) {
+          console.error('❌ Erro ao deletar conta do Supabase:', error);
+        } else {
+          console.log('✅ Conta deletada do Supabase');
+        }
+      } catch (error) {
+        console.error('❌ Erro na deleção da conta:', error);
+      }
+    }
   };
 
   return (

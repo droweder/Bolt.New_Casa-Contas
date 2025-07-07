@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 const Login: React.FC = () => {
   const { login } = useAuth();
   const [formData, setFormData] = useState({
-    username: '',
+    email: '',
     password: '',
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -17,7 +17,7 @@ const Login: React.FC = () => {
     setError('');
     setIsLoading(true);
 
-    if (!formData.username || !formData.password) {
+    if (!formData.email || !formData.password) {
       setError('Por favor, preencha todos os campos');
       setIsLoading(false);
       return;
@@ -25,9 +25,9 @@ const Login: React.FC = () => {
 
     // Simular um pequeno delay para melhor UX
     setTimeout(() => {
-      const success = login(formData.username, formData.password);
+      const success = login(formData.email, formData.password);
       if (!success) {
-        setError('Usuário ou senha incorretos');
+        setError('Email ou senha incorretos');
       }
       setIsLoading(false);
     }, 300);
@@ -85,14 +85,14 @@ const Login: React.FC = () => {
             </div>
           </div>
 
-          {error && (
+            Email
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
               <AlertCircle className="w-4 h-4" />
               {error}
-            </div>
-          )}
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
 
-          <button
+            placeholder="Digite seu email"
             type="submit"
             disabled={isLoading}
             className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"

@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Expense, Income, Category, FilterState } from '../types';
 import { supabase } from '../lib/supabase';
-import { useAuth } from './AuthContext';
 
 interface FinanceContextType {
   expenses: Expense[];
@@ -35,6 +34,7 @@ interface FinanceProviderProps {
 }
 
 export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) => {
+  const { currentUser } = useAuth();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [income, setIncome] = useState<Income[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -159,10 +159,6 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
   }, [filters]);
 
   // Helper function to get current user ID
-  const getCurrentUserId = () => {
-    const currentUser = JSON.parse(localStorage.getItem('finance-current-user') || 'null');
-    return currentUser?.id || 'local-user';
-  };
 
   // Helper function to sync to Supabase
   const syncToSupabase = async (table: string, data: any) => {
@@ -181,6 +177,11 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
   };
 
   const addExpense = async (expense: Omit<Expense, 'id' | 'createdAt'>) => {
+    if (!currentUser) {
+      console.error('❌ Usuário não autenticado');
+      return;
+    }
+
     const newExpense: Expense = {
       ...expense,
       id: Date.now().toString(),
@@ -204,12 +205,17 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
       installment_group: newExpense.installmentGroup || null,
       due_date: newExpense.dueDate || null,
       is_credit_card: newExpense.isCreditCard || false,
-      user_id: getCurrentUserId(),
+      user_id: currentUser.id,
       created_at: newExpense.createdAt,
     });
   };
 
   const addIncome = async (income: Omit<Income, 'id' | 'createdAt'>) => {
+    if (!currentUser) {
+      console.error('❌ Usuário não autenticado');
+      return;
+    }
+
     const newIncome: Income = {
       ...income,
       id: Date.now().toString(),
@@ -226,12 +232,17 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
       notes: newIncome.notes || '',
       location: newIncome.location || null,
       account: newIncome.account || null,
-      user_id: getCurrentUserId(),
+      user_id: currentUser.id,
       created_at: newIncome.createdAt,
     });
   };
 
   const addCategory = async (category: Omit<Category, 'id' | 'createdAt'>) => {
+    if (!currentUser) {
+      console.error('❌ Usuário não autenticado');
+      return;
+    }
+
     const newCategory: Category = {
       ...category,
       id: Date.now().toString(),
@@ -244,12 +255,17 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
       id: newCategory.id,
       name: newCategory.name,
       type: newCategory.type,
-      user_id: getCurrentUserId(),
+      user_id: currentUser.id,
       created_at: newCategory.createdAt,
     });
   };
 
   const updateExpense = async (id: string, updatedExpense: Partial<Expense>) => {
+    if (!currentUser) {
+      console.error('❌ Usuário não autenticado');
+      return;
+    }
+
     setExpenses(prev => prev.map(expense => 
       expense.id === id ? { ...expense, ...updatedExpense } : expense
     ));
@@ -273,13 +289,18 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
         installment_group: updatedData.installmentGroup || null,
         due_date: updatedData.dueDate || null,
         is_credit_card: updatedData.isCreditCard || false,
-        user_id: getCurrentUserId(),
+        user_id: currentUser.id,
         created_at: updatedData.createdAt,
       });
     }
   };
 
   const updateIncome = async (id: string, updatedIncome: Partial<Income>) => {
+    if (!currentUser) {
+      console.error('❌ Usuário não autenticado');
+      return;
+    }
+
     setIncome(prev => prev.map(income => 
       income.id === id ? { ...income, ...updatedIncome } : income
     ));
@@ -296,13 +317,18 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
         notes: updatedData.notes || '',
         location: updatedData.location || null,
         account: updatedData.account || null,
-        user_id: getCurrentUserId(),
+        user_id: currentUser.id,
         created_at: updatedData.createdAt,
       });
     }
   };
 
   const updateCategory = async (id: string, updatedCategory: Partial<Category>) => {
+    if (!currentUser) {
+      console.error('❌ Usuário não autenticado');
+      return;
+    }
+
     setCategories(prev => prev.map(category => 
       category.id === id ? { ...category, ...updatedCategory } : category
     ));
@@ -315,13 +341,18 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
         id: updatedData.id,
         name: updatedData.name,
         type: updatedData.type,
-        user_id: getCurrentUserId(),
+        user_id: currentUser.id,
         created_at: updatedData.createdAt,
       });
     }
   };
 
   const deleteExpense = async (id: string) => {
+    if (!currentUser) {
+      console.error('❌ Usuário não autenticado');
+      return;
+    }
+
     setExpenses(prev => prev.filter(expense => expense.id !== id));
 
     // Delete from Supabase
@@ -340,6 +371,11 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
   };
 
   const deleteIncome = async (id: string) => {
+    if (!currentUser) {
+      console.error('❌ Usuário não autenticado');
+      return;
+    }
+
     setIncome(prev => prev.filter(income => income.id !== id));
 
     // Delete from Supabase
@@ -358,6 +394,11 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
   };
 
   const deleteCategory = async (id: string) => {
+    if (!currentUser) {
+      console.error('❌ Usuário não autenticado');
+      return;
+    }
+
     setCategories(prev => prev.filter(category => category.id !== id));
 
     // Delete from Supabase

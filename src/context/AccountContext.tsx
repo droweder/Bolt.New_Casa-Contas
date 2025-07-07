@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Account } from '../types';
 import { supabase } from '../lib/supabase';
+import { useAuth } from './AuthContext';
 
 interface AccountContextType {
   accounts: Account[];
@@ -24,6 +25,7 @@ interface AccountProviderProps {
 }
 
 export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) => {
+  const { currentUser } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
 
@@ -71,10 +73,6 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
   }, [accounts]);
 
   // Helper function to get current user ID
-  const getCurrentUserId = () => {
-    const currentUser = JSON.parse(localStorage.getItem('finance-current-user') || 'null');
-    return currentUser?.id || 'local-user';
-  };
 
   // Helper function to sync to Supabase
   const syncToSupabase = async (data: any) => {
@@ -93,6 +91,11 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
   };
 
   const addAccount = async (account: Omit<Account, 'id' | 'createdAt'>) => {
+    if (!currentUser) {
+      console.error('❌ Usuário não autenticado');
+      return;
+    }
+
     const newAccount: Account = {
       ...account,
       id: Date.now().toString(),
@@ -105,12 +108,17 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
       id: newAccount.id,
       name: newAccount.name,
       initial_balance: newAccount.initialBalance,
-      user_id: getCurrentUserId(),
+      user_id: currentUser.id,
       created_at: newAccount.createdAt,
     });
   };
 
   const updateAccount = async (id: string, updatedAccount: Partial<Account>) => {
+    if (!currentUser) {
+      console.error('❌ Usuário não autenticado');
+      return;
+    }
+
     setAccounts(prev => prev.map(account => 
       account.id === id ? { ...account, ...updatedAccount } : account
     ));
@@ -123,13 +131,18 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
         id: updatedData.id,
         name: updatedData.name,
         initial_balance: updatedData.initialBalance,
-        user_id: getCurrentUserId(),
+        user_id: currentUser.id,
         created_at: updatedData.createdAt,
       });
     }
   };
 
   const deleteAccount = async (id: string) => {
+    if (!currentUser) {
+      console.error('❌ Usuário não autenticado');
+      return;
+    }
+
     setAccounts(prev => prev.filter(account => account.id !== id));
 
     // Delete from Supabase

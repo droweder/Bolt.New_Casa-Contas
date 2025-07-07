@@ -8,6 +8,7 @@ export const useSupabaseSync = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error' | 'success'>('idle');
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
   const { currentUser, authToken } = useAuth();
   const { expenses, income, categories } = useFinance();
   const { accounts } = useAccounts();
@@ -19,6 +20,9 @@ export const useSupabaseSync = () => {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // Check connection status on mount
+    validateConnection();
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -26,10 +30,12 @@ export const useSupabaseSync = () => {
   }, []);
 
   const validateConnection = async (): Promise<boolean> => {
+    setConnectionStatus('checking');
     try {
       // Verificar se o token está presente
       if (!authToken) {
         console.error('❌ Token de autenticação não encontrado');
+        setConnectionStatus('disconnected');
         return false;
       }
 
@@ -37,14 +43,25 @@ export const useSupabaseSync = () => {
       const { data, error } = await supabase.from('categories').select('count').limit(1);
       
       if (error) {
-        console.error('❌ Erro na conexão com Supabase:', error);
+        console.error('❌ Erro na conexão com Supabase:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        setConnectionStatus('disconnected');
         return false;
       }
 
       console.log('✅ Conexão com Supabase validada');
+      setConnectionStatus('connected');
       return true;
-    } catch (error) {
-      console.error('❌ Erro na validação da conexão:', error);
+    } catch (error: any) {
+      console.error('❌ Erro na validação da conexão:', {
+        message: error?.message || 'Erro desconhecido',
+        stack: error?.stack
+      });
+      setConnectionStatus('disconnected');
       return false;
     }
   };
@@ -71,7 +88,13 @@ export const useSupabaseSync = () => {
           });
 
         if (error) {
-          console.error('❌ Erro ao sincronizar categoria:', error);
+          console.error('❌ Erro ao sincronizar categoria:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+            category: category.name
+          });
           throw error;
         }
       }
@@ -89,7 +112,13 @@ export const useSupabaseSync = () => {
           });
 
         if (error) {
-          console.error('❌ Erro ao sincronizar conta:', error);
+          console.error('❌ Erro ao sincronizar conta:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+            account: account.name
+          });
           throw error;
         }
       }
@@ -105,20 +134,26 @@ export const useSupabaseSync = () => {
             description: expense.description,
             amount: expense.amount,
             payment_method: expense.paymentMethod,
-            location: expense.location,
+            location: expense.location || null,
             paid: expense.paid || false,
             is_installment: expense.isInstallment || false,
-            installment_number: expense.installmentNumber,
-            total_installments: expense.totalInstallments,
-            installment_group: expense.installmentGroup,
-            due_date: expense.dueDate,
+            installment_number: expense.installmentNumber || null,
+            total_installments: expense.totalInstallments || null,
+            installment_group: expense.installmentGroup || null,
+            due_date: expense.dueDate || null,
             is_credit_card: expense.isCreditCard || false,
             user_id: currentUser.id,
             created_at: expense.createdAt,
           });
 
         if (error) {
-          console.error('❌ Erro ao sincronizar despesa:', error);
+          console.error('❌ Erro ao sincronizar despesa:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+            expense: expense.description
+          });
           throw error;
         }
       }
@@ -132,23 +167,34 @@ export const useSupabaseSync = () => {
             date: incomeItem.date,
             source: incomeItem.source,
             amount: incomeItem.amount,
-            notes: incomeItem.notes,
-            location: incomeItem.location,
-            account: incomeItem.account,
+            notes: incomeItem.notes || '',
+            location: incomeItem.location || null,
+            account: incomeItem.account || null,
             user_id: currentUser.id,
             created_at: incomeItem.createdAt,
           });
 
         if (error) {
-          console.error('❌ Erro ao sincronizar receita:', error);
+          console.error('❌ Erro ao sincronizar receita:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+            income: incomeItem.source
+          });
           throw error;
         }
       }
 
       console.log('✅ Sincronização para Supabase concluída');
       return true;
-    } catch (error) {
-      console.error('❌ Erro na sincronização para Supabase:', error);
+    } catch (error: any) {
+      console.error('❌ Erro na sincronização para Supabase:', {
+        message: error?.message || 'Erro desconhecido',
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code
+      });
       return false;
     }
   };
@@ -169,14 +215,24 @@ export const useSupabaseSync = () => {
         .eq('user_id', currentUser.id);
 
       if (userError) {
-        console.error('❌ Erro ao buscar dados do usuário:', userError);
+        console.error('❌ Erro ao buscar dados do usuário:', {
+          message: userError.message,
+          details: userError.details,
+          hint: userError.hint,
+          code: userError.code
+        });
         throw userError;
       }
 
       console.log('✅ Dados do usuário encontrados:', userData?.length || 0, 'registros');
       return true;
-    } catch (error) {
-      console.error('❌ Erro na sincronização do Supabase:', error);
+    } catch (error: any) {
+      console.error('❌ Erro na sincronização do Supabase:', {
+        message: error?.message || 'Erro desconhecido',
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code
+      });
       return false;
     }
   };
@@ -213,8 +269,11 @@ export const useSupabaseSync = () => {
       console.log('🎉 Sincronização completa realizada com sucesso!');
       
       setTimeout(() => setSyncStatus('idle'), 3000);
-    } catch (error) {
-      console.error('❌ Erro na sincronização:', error);
+    } catch (error: any) {
+      console.error('❌ Erro na sincronização:', {
+        message: error?.message || 'Erro desconhecido',
+        stack: error?.stack
+      });
       setSyncStatus('error');
       setTimeout(() => setSyncStatus('idle'), 5000);
     }
@@ -224,6 +283,7 @@ export const useSupabaseSync = () => {
     isOnline,
     syncStatus,
     lastSyncTime,
+    connectionStatus,
     syncData,
     validateConnection,
   };

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings as SettingsIcon, Palette, Tag, CreditCard, Plus, Edit2, Trash2, Users, Upload, Download, FileText, Wifi, WifiOff, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { Settings as SettingsIcon, Palette, Tag, CreditCard, Plus, Edit2, Trash2, Users, Upload, Download, FileText, Wifi, WifiOff, CheckCircle, AlertCircle, Clock, Database } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useFinance } from '../context/FinanceContext';
 import { useAccounts } from '../context/AccountContext';
@@ -16,7 +16,7 @@ const Settings: React.FC = () => {
   const { categories, deleteCategory } = useFinance();
   const { accounts, deleteAccount } = useAccounts();
   const { currentUser, users, deleteUser } = useAuth();
-  const { isOnline, syncStatus, lastSyncTime, syncData } = useSupabaseSync();
+  const { isOnline, syncStatus, lastSyncTime, connectionStatus, syncData } = useSupabaseSync();
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [showAccountForm, setShowAccountForm] = useState(false);
   const [showUserForm, setShowUserForm] = useState(false);
@@ -118,6 +118,45 @@ const Settings: React.FC = () => {
     }
   };
 
+  const getConnectionStatusIcon = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return <Database className="w-4 h-4 text-green-500" />;
+      case 'disconnected':
+        return <Database className="w-4 h-4 text-red-500" />;
+      case 'checking':
+        return <Database className="w-4 h-4 text-blue-500 animate-pulse" />;
+      default:
+        return <Database className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const getConnectionStatusText = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return 'Conectado ao Supabase';
+      case 'disconnected':
+        return 'Desconectado do Supabase';
+      case 'checking':
+        return 'Verificando conexão...';
+      default:
+        return 'Status desconhecido';
+    }
+  };
+
+  const getConnectionStatusColor = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return 'text-green-600 dark:text-green-400';
+      case 'disconnected':
+        return 'text-red-600 dark:text-red-400';
+      case 'checking':
+        return 'text-blue-600 dark:text-blue-400';
+      default:
+        return 'text-gray-600 dark:text-gray-400';
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
@@ -133,6 +172,32 @@ const Settings: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Coluna Esquerda - Configurações Gerais */}
         <div className="space-y-6">
+          {/* Status de Conexão com Supabase */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                  {getConnectionStatusIcon()}
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Status da Conexão</h3>
+                  <p className={`text-sm font-medium ${getConnectionStatusColor()}`}>
+                    {getConnectionStatusText()}
+                  </p>
+                </div>
+              </div>
+              <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                connectionStatus === 'connected' 
+                  ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300'
+                  : connectionStatus === 'disconnected'
+                  ? 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-300'
+                  : 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300'
+              }`}>
+                {connectionStatus === 'connected' ? 'Conectado' : connectionStatus === 'disconnected' ? 'Desconectado' : 'Verificando'}
+              </div>
+            </div>
+          </div>
+
           {/* Sincronização */}
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
             <div className="flex items-center justify-between mb-4">
@@ -154,7 +219,7 @@ const Settings: React.FC = () => {
               </div>
               <button
                 onClick={syncData}
-                disabled={!isOnline || syncStatus === 'syncing'}
+                disabled={!isOnline || syncStatus === 'syncing' || connectionStatus !== 'connected'}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Sincronizar

@@ -106,10 +106,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     console.log('🔐 Tentativa de login:', { username, password });
-    console.log('👥 Usuários disponíveis:', users.map(u => ({ username: u.username, password: u.password })));
     
     try {
-      // Primeiro, tentar autenticação com Supabase
+      // Tentar autenticação com Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
         email: `${username}@finance.local`, // Usar email fictício baseado no username
         password: password,
@@ -129,26 +128,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setAuthToken(data.session?.access_token || null);
         console.log('🎉 Login Supabase realizado com sucesso!');
         return true;
+      } else {
+        console.log('❌ Falha na autenticação Supabase:', error?.message);
+        return false;
       }
-    } catch (supabaseError) {
-      console.log('⚠️ Falha na autenticação Supabase, tentando autenticação local:', supabaseError);
+    } catch (supabaseError: any) {
+      console.log('⚠️ Erro na autenticação Supabase:', supabaseError?.message);
+      return false;
     }
-
-    // Fallback para autenticação local
-    const user = users.find(u => u.username === username && u.password === password);
-    console.log('✅ Usuário encontrado localmente:', user);
-    
-    if (user) {
-      setCurrentUser(user);
-      // Gerar token local simples
-      const localToken = btoa(`${username}:${Date.now()}`);
-      setAuthToken(localToken);
-      console.log('🎉 Login local realizado com sucesso!');
-      return true;
-    }
-    
-    console.log('❌ Login falhou - credenciais inválidas');
-    return false;
   };
 
   const logout = async () => {

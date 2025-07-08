@@ -27,14 +27,14 @@ export const useSupabaseSync = () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [authToken]);
 
   const validateConnection = async (): Promise<boolean> => {
     setConnectionStatus('checking');
     try {
       // Verificar se o token está presente
       if (!authToken) {
-        console.error('❌ Token de autenticação não encontrado');
+        console.warn('⚠️ Token de autenticação não encontrado - usuário não autenticado');
         setConnectionStatus('disconnected');
         return false;
       }

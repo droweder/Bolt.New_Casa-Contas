@@ -8,6 +8,7 @@ interface AccountContextType {
   addAccount: (account: Omit<Account, 'id' | 'createdAt'>) => void;
   updateAccount: (id: string, account: Partial<Account>) => void;
   deleteAccount: (id: string) => void;
+  isLoading: boolean;
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
@@ -27,68 +28,48 @@ interface AccountProviderProps {
 export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) => {
   const { currentUser } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Check Supabase connection
+  // Buscar contas do Supabase quando o usuário estiver autenticado
   useEffect(() => {
-    const checkSupabaseConnection = async () => {
+    const fetchAccounts = async () => {
+      if (!currentUser) {
+        setAccounts([]);
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        const { data, error } = await supabase.from('accounts').select('count').limit(1);
-        if (!error) {
-          setIsSupabaseConnected(true);
-          console.log('✅ Supabase conectado para contas');
+        setIsLoading(true);
+        const { data, error } = await supabase
+          .from('accounts')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: true });
+
+        if (error) {
+          console.error('❌ Erro ao buscar contas:', error);
+          setAccounts([]);
         } else {
-          setIsSupabaseConnected(false);
-          console.log('❌ Supabase desconectado para contas:', error.message);
+          const mappedAccounts: Account[] = data.map(account => ({
+            id: account.id,
+            name: account.name,
+            initialBalance: parseFloat(account.initial_balance.toString()),
+            createdAt: account.created_at,
+          }));
+          setAccounts(mappedAccounts);
+          console.log('✅ Contas carregadas:', mappedAccounts.length);
         }
       } catch (error) {
-        setIsSupabaseConnected(false);
-        console.log('❌ Erro ao verificar conexão Supabase para contas:', error);
+        console.error('❌ Erro ao buscar contas:', error);
+        setAccounts([]);
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    checkSupabaseConnection();
-  }, []);
-
-  useEffect(() => {
-    const savedAccounts = localStorage.getItem('finance-accounts');
-    if (savedAccounts) {
-      setAccounts(JSON.parse(savedAccounts));
-    } else {
-      // Contas padrão baseadas nos métodos de pagamento
-      const defaultAccounts: Account[] = [
-        { id: '1', name: 'Viacredi - Tatiane', initialBalance: 0, createdAt: new Date().toISOString() },
-        { id: '2', name: 'Viacredi - Dirceu', initialBalance: 0, createdAt: new Date().toISOString() },
-        { id: '3', name: 'Mercado Pago', initialBalance: 0, createdAt: new Date().toISOString() },
-        { id: '4', name: 'Carteira - Tatiane', initialBalance: 0, createdAt: new Date().toISOString() },
-        { id: '5', name: 'Carteira - Dirceu', initialBalance: 0, createdAt: new Date().toISOString() },
-        { id: '6', name: 'UtilAlimentação', initialBalance: 0, createdAt: new Date().toISOString() },
-      ];
-      setAccounts(defaultAccounts);
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('finance-accounts', JSON.stringify(accounts));
-  }, [accounts]);
-
-  // Helper function to get current user ID
-
-  // Helper function to sync to Supabase
-  const syncToSupabase = async (data: any) => {
-    if (!isSupabaseConnected) return;
-    
-    try {
-      const { error } = await supabase.from('accounts').upsert(data);
-      if (error) {
-        console.error('❌ Erro ao sincronizar conta:', error);
-      } else {
-        console.log('✅ Conta sincronizada com sucesso');
-      }
-    } catch (error) {
-      console.error('❌ Erro na sincronização da conta:', error);
-    }
-  };
+    fetchAccounts();
+  }, [currentUser]);
 
   const addAccount = async (account: Omit<Account, 'id' | 'createdAt'>) => {
     if (!currentUser) {
@@ -96,21 +77,34 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
       return;
     }
 
-    const newAccount: Account = {
-      ...account,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-    };
-    setAccounts(prev => [...prev, newAccount]);
+    try {
+      const { data, error } = await supabase
+        .from('accounts')
+        .insert({
+          name: account.name,
+          initial_balance: account.initialBalance,
+          user_id: currentUser.id,
+        })
+        .select()
+        .single();
 
-    // Sync to Supabase immediately
-    await syncToSupabase({
-      id: newAccount.id,
-      name: newAccount.name,
-      initial_balance: newAccount.initialBalance,
-      user_id: currentUser.id,
-      created_at: newAccount.createdAt,
-    });
+      if (error) {
+        console.error('❌ Erro ao adicionar conta:', error);
+        return;
+      }
+
+      const newAccount: Account = {
+        id: data.id,
+        name: data.name,
+        initialBalance: parseFloat(data.initial_balance.toString()),
+        createdAt: data.created_at,
+      };
+
+      setAccounts(prev => [...prev, newAccount]);
+      console.log('✅ Conta adicionada:', newAccount.name);
+    } catch (error) {
+      console.error('❌ Erro ao adicionar conta:', error);
+    }
   };
 
   const updateAccount = async (id: string, updatedAccount: Partial<Account>) => {
@@ -119,21 +113,28 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
       return;
     }
 
-    setAccounts(prev => prev.map(account => 
-      account.id === id ? { ...account, ...updatedAccount } : account
-    ));
+    try {
+      const updateData: any = {};
+      if (updatedAccount.name !== undefined) updateData.name = updatedAccount.name;
+      if (updatedAccount.initialBalance !== undefined) updateData.initial_balance = updatedAccount.initialBalance;
 
-    // Find the updated account and sync to Supabase
-    const account = accounts.find(a => a.id === id);
-    if (account && isSupabaseConnected) {
-      const updatedData = { ...account, ...updatedAccount };
-      await syncToSupabase({
-        id: updatedData.id,
-        name: updatedData.name,
-        initial_balance: updatedData.initialBalance,
-        user_id: currentUser.id,
-        created_at: updatedData.createdAt,
-      });
+      const { error } = await supabase
+        .from('accounts')
+        .update(updateData)
+        .eq('id', id)
+        .eq('user_id', currentUser.id);
+
+      if (error) {
+        console.error('❌ Erro ao atualizar conta:', error);
+        return;
+      }
+
+      setAccounts(prev => prev.map(account => 
+        account.id === id ? { ...account, ...updatedAccount } : account
+      ));
+      console.log('✅ Conta atualizada');
+    } catch (error) {
+      console.error('❌ Erro ao atualizar conta:', error);
     }
   };
 
@@ -143,20 +144,22 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
       return;
     }
 
-    setAccounts(prev => prev.filter(account => account.id !== id));
+    try {
+      const { error } = await supabase
+        .from('accounts')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', currentUser.id);
 
-    // Delete from Supabase
-    if (isSupabaseConnected) {
-      try {
-        const { error } = await supabase.from('accounts').delete().eq('id', id);
-        if (error) {
-          console.error('❌ Erro ao deletar conta do Supabase:', error);
-        } else {
-          console.log('✅ Conta deletada do Supabase');
-        }
-      } catch (error) {
-        console.error('❌ Erro na deleção da conta:', error);
+      if (error) {
+        console.error('❌ Erro ao deletar conta:', error);
+        return;
       }
+
+      setAccounts(prev => prev.filter(account => account.id !== id));
+      console.log('✅ Conta deletada');
+    } catch (error) {
+      console.error('❌ Erro ao deletar conta:', error);
     }
   };
 
@@ -167,6 +170,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
         addAccount,
         updateAccount,
         deleteAccount,
+        isLoading,
       }}
     >
       {children}

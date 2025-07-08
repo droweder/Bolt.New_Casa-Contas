@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, Plus, Minus } from 'lucide-react';
 import { useFinance } from '../context/FinanceContext';
-import { useSettings } from '../context/SettingsContext';
 import { useAccounts } from '../context/AccountContext';
+import { useSettings } from '../context/SettingsContext';
 import { Income } from '../types';
 
 interface IncomeFormProps {
@@ -12,15 +12,16 @@ interface IncomeFormProps {
 
 const IncomeForm: React.FC<IncomeFormProps> = ({ income, onClose }) => {
   const { addIncome, updateIncome, categories } = useFinance();
-  const { settings } = useSettings();
   const { accounts } = useAccounts();
+  const { settings } = useSettings();
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     category: '',
     amount: '',
-    notes: '',
-    location: '',
     account: '',
+    description: '',
+    location: '',
+    isCreditCard: false,
     isRecurring: false,
     totalRecurrences: 1,
   });
@@ -33,9 +34,10 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ income, onClose }) => {
         date: income.date,
         category: income.source,
         amount: income.amount.toString().replace('.', ','),
-        notes: income.notes,
-        location: income.location || '',
         account: income.account || '',
+        description: income.notes || '',
+        location: income.location || '',
+        isCreditCard: false, // Nota: precisa adicionar coluna no banco
         isRecurring: false,
         totalRecurrences: 1,
       });
@@ -75,7 +77,7 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ income, onClose }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.category || !formData.amount) {
+    if (!formData.category || !formData.amount || !formData.account) {
       alert('Por favor, preencha todos os campos obrigatórios');
       return;
     }
@@ -87,13 +89,13 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ income, onClose }) => {
     }
 
     if (formData.isRecurring && !income) {
-      // Create multiple recurring incomes with clean descriptions
+      // Create multiple recurring incomes
       for (let i = 0; i < formData.totalRecurrences; i++) {
         const incomeData = {
           date: recurrenceDates[i] || formData.date,
           source: formData.category,
           amount: baseAmount,
-          notes: formData.notes, // Clean notes without recurrence info
+          notes: formData.description,
           location: formData.location,
           account: formData.account,
         };
@@ -106,7 +108,7 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ income, onClose }) => {
         date: formData.date,
         source: formData.category,
         amount: baseAmount,
-        notes: formData.notes, // Clean notes
+        notes: formData.description,
         location: formData.location,
         account: formData.account,
       };
@@ -128,9 +130,10 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ income, onClose }) => {
     date: 'Data',
     category: 'Categoria',
     amount: 'Valor (R$)',
-    notes: 'Descrição',
-    location: 'Local/Pessoa',
     account: 'Conta',
+    description: 'Descrição',
+    location: 'Local/Pessoa',
+    creditCard: 'Cartão de Crédito',
     recurring: 'Receita recorrente',
     recurrences: 'Número de Recorrências',
     recurrenceDates: 'Datas das Recorrências',
@@ -187,32 +190,6 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ income, onClose }) => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {labels.notes}
-            </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
-              placeholder="Observações opcionais sobre esta receita"
-              rows={3}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {labels.location}
-            </label>
-            <input
-              type="text"
-              value={formData.location}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
-              placeholder="Ex: Empresa, Cliente, João Silva, etc."
-            />
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -235,12 +212,13 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ income, onClose }) => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {labels.account}
+                {labels.account} <span className="text-red-500">*</span>
               </label>
               <select
                 value={formData.account}
                 onChange={(e) => setFormData({ ...formData, account: e.target.value })}
                 className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                required
               >
                 <option value="">Selecione uma conta</option>
                 {accounts.map(account => (
@@ -248,6 +226,46 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ income, onClose }) => {
                 ))}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {labels.description}
+            </label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+              placeholder="Observações opcionais sobre esta receita"
+              rows={3}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {labels.location}
+            </label>
+            <input
+              type="text"
+              value={formData.location}
+              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+              placeholder="Ex: Empresa, Cliente, João Silva, etc."
+            />
+          </div>
+
+          {/* Credit Card Option */}
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="isCreditCard"
+              checked={formData.isCreditCard}
+              onChange={(e) => setFormData({ ...formData, isCreditCard: e.target.checked })}
+              className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 dark:bg-gray-700 dark:border-gray-600"
+            />
+            <label htmlFor="isCreditCard" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {labels.creditCard}
+            </label>
           </div>
 
           {/* Recurring Section */}

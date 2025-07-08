@@ -23,14 +23,16 @@ const Login: React.FC = () => {
       return;
     }
 
-    // Simular um pequeno delay para melhor UX
-    setTimeout(() => {
-      const success = login(formData.email, formData.password);
+    try {
+      const success = await login(formData.email, formData.password);
       if (!success) {
         setError('Email ou senha incorretos');
       }
+    } catch (error) {
+      setError('Erro ao conectar com o servidor');
+    } finally {
       setIsLoading(false);
-    }, 300);
+    }
   };
 
   return (

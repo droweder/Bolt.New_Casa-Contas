@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings as SettingsIcon, Palette, Tag, CreditCard, Plus, Edit2, Trash2, Users, Upload, Download, FileText, Wifi, WifiOff, CheckCircle, AlertCircle, Clock, Database } from 'lucide-react';
+import { Settings as SettingsIcon, Palette, Tag, CreditCard, Plus, Edit2, Trash2, Upload, Download, FileText, Wifi, WifiOff, CheckCircle, AlertCircle, Clock, Database } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useFinance } from '../context/FinanceContext';
 import { useAccounts } from '../context/AccountContext';
@@ -8,22 +8,19 @@ import { useSupabaseSync } from '../hooks/useSupabaseSync';
 import { Category, Account } from '../types';
 import CategoryForm from './CategoryForm';
 import AccountForm from './AccountForm';
-import UserForm from './UserForm';
 import ImportCSV from './ImportCSV';
 
 const Settings: React.FC = () => {
   const { settings, updateSettings } = useSettings();
   const { categories, deleteCategory } = useFinance();
   const { accounts, deleteAccount } = useAccounts();
-  const { currentUser, users, deleteUser } = useAuth();
+  const { currentUser } = useAuth();
   const { isOnline, syncStatus, lastSyncTime, connectionStatus, syncData } = useSupabaseSync();
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [showAccountForm, setShowAccountForm] = useState(false);
-  const [showUserForm, setShowUserForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
-  const [editingUser, setEditingUser] = useState<any>(null);
   const [categorySearch, setCategorySearch] = useState('');
   const [accountSearch, setAccountSearch] = useState('');
 
@@ -53,17 +50,6 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handleEditUser = (user: any) => {
-    setEditingUser(user);
-    setShowUserForm(true);
-  };
-
-  const handleDeleteUser = (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este usuário?')) {
-      deleteUser(id);
-    }
-  };
-
   const handleCategoryFormClose = () => {
     setShowCategoryForm(false);
     setEditingCategory(null);
@@ -72,11 +58,6 @@ const Settings: React.FC = () => {
   const handleAccountFormClose = () => {
     setShowAccountForm(false);
     setEditingAccount(null);
-  };
-
-  const handleUserFormClose = () => {
-    setShowUserForm(false);
-    setEditingUser(null);
   };
 
   const expenseCategories = categories.filter(cat => 
@@ -452,64 +433,6 @@ const Settings: React.FC = () => {
               ))}
             </div>
           </div>
-
-          {/* Usuários (apenas para admin) */}
-          {currentUser?.isAdmin && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
-                    <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Usuários</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Gerencie usuários do sistema
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowUserForm(true)}
-                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Adicionar
-                </button>
-              </div>
-
-              <div className="space-y-3 max-h-48 overflow-y-auto">
-                {users.map((user) => (
-                  <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                      <div>
-                        <span className="font-medium text-gray-900 dark:text-white">{user.username}</span>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {user.isAdmin ? 'Administrador' : 'Usuário'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleEditUser(user)}
-                        className="p-2 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900 rounded-lg transition-colors"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      {user.id !== currentUser.id && (
-                        <button
-                          onClick={() => handleDeleteUser(user.id)}
-                          className="p-2 text-red-600 hover:bg-red-100 dark:hover:bg-red-900 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -525,13 +448,6 @@ const Settings: React.FC = () => {
         <AccountForm
           account={editingAccount}
           onClose={handleAccountFormClose}
-        />
-      )}
-
-      {currentUser?.isAdmin && showUserForm && (
-        <UserForm
-          user={editingUser}
-          onClose={handleUserFormClose}
         />
       )}
 

@@ -18,6 +18,7 @@ interface FinanceContextType {
   deleteIncome: (id: string) => void;
   deleteCategory: (id: string) => void;
   updateFilters: (section: keyof FilterState, newFilters: Partial<FilterState[keyof FilterState]>) => void;
+  isLoading: boolean;
 }
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
@@ -39,7 +40,7 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [income, setIncome] = useState<Income[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState<FilterState>({
     expenses: {
       category: '',
@@ -65,117 +66,103 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
     },
   });
 
-  // Check Supabase connection
+  // Buscar dados do Supabase quando o usuário estiver autenticado
   useEffect(() => {
-    const checkSupabaseConnection = async () => {
+    const fetchData = async () => {
+      if (!currentUser) {
+        setExpenses([]);
+        setIncome([]);
+        setCategories([]);
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        const { data, error } = await supabase.from('categories').select('count').limit(1);
-        if (!error) {
-          setIsSupabaseConnected(true);
-          console.log('✅ Supabase conectado');
+        setIsLoading(true);
+
+        // Buscar categorias
+        const { data: categoriesData, error: categoriesError } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: true });
+
+        if (categoriesError) {
+          console.error('❌ Erro ao buscar categorias:', categoriesError);
         } else {
-          setIsSupabaseConnected(false);
-          console.log('❌ Supabase desconectado:', error.message);
+          const mappedCategories: Category[] = categoriesData.map(cat => ({
+            id: cat.id,
+            name: cat.name,
+            type: cat.type as 'income' | 'expense',
+            createdAt: cat.created_at,
+          }));
+          setCategories(mappedCategories);
+          console.log('✅ Categorias carregadas:', mappedCategories.length);
+        }
+
+        // Buscar despesas
+        const { data: expensesData, error: expensesError } = await supabase
+          .from('expenses')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false });
+
+        if (expensesError) {
+          console.error('❌ Erro ao buscar despesas:', expensesError);
+        } else {
+          const mappedExpenses: Expense[] = expensesData.map(exp => ({
+            id: exp.id,
+            date: exp.date,
+            category: exp.category,
+            description: exp.description,
+            amount: parseFloat(exp.amount.toString()),
+            paymentMethod: exp.payment_method,
+            location: exp.location,
+            paid: exp.paid,
+            isInstallment: exp.is_installment,
+            installmentNumber: exp.installment_number,
+            totalInstallments: exp.total_installments,
+            installmentGroup: exp.installment_group,
+            dueDate: exp.due_date,
+            isCreditCard: exp.is_credit_card,
+            createdAt: exp.created_at,
+          }));
+          setExpenses(mappedExpenses);
+          console.log('✅ Despesas carregadas:', mappedExpenses.length);
+        }
+
+        // Buscar receitas
+        const { data: incomeData, error: incomeError } = await supabase
+          .from('income')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false });
+
+        if (incomeError) {
+          console.error('❌ Erro ao buscar receitas:', incomeError);
+        } else {
+          const mappedIncome: Income[] = incomeData.map(inc => ({
+            id: inc.id,
+            date: inc.date,
+            source: inc.source,
+            amount: parseFloat(inc.amount.toString()),
+            notes: inc.notes,
+            location: inc.location,
+            account: inc.account,
+            createdAt: inc.created_at,
+          }));
+          setIncome(mappedIncome);
+          console.log('✅ Receitas carregadas:', mappedIncome.length);
         }
       } catch (error) {
-        setIsSupabaseConnected(false);
-        console.log('❌ Erro ao verificar conexão Supabase:', error);
+        console.error('❌ Erro ao buscar dados:', error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    checkSupabaseConnection();
-  }, []);
-
-  // Load data from localStorage on mount
-  useEffect(() => {
-    const savedExpenses = localStorage.getItem('finance-expenses');
-    const savedIncome = localStorage.getItem('finance-income');
-    const savedCategories = localStorage.getItem('finance-categories');
-    const savedFilters = localStorage.getItem('finance-filters');
-
-    if (savedExpenses) {
-      setExpenses(JSON.parse(savedExpenses));
-    }
-    if (savedIncome) {
-      setIncome(JSON.parse(savedIncome));
-    }
-    if (savedFilters) {
-      setFilters(JSON.parse(savedFilters));
-    }
-    if (savedCategories) {
-      setCategories(JSON.parse(savedCategories));
-    } else {
-      // Initialize with default categories based on the Excel data
-      const defaultCategories: Category[] = [
-        // Expense categories from the Excel
-        { id: '1', name: 'Serviços Mensais', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '2', name: 'Empréstimos', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '3', name: 'Holerite/Extras', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '4', name: 'Cuidados Pessoais/Saúde', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '5', name: 'Aplicações/Cotas/Retornos', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '6', name: 'Contribuição', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '7', name: 'Ressarcimento', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '8', name: 'Outros', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '9', name: 'Transferência', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '10', name: 'Presentes', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '11', name: 'Uso/Consumo/Alimentação', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '12', name: 'Food & Dining', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '13', name: 'Transport', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '14', name: 'Rent', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '15', name: 'Utilities', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '16', name: 'Entertainment', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '17', name: 'Healthcare', type: 'expense', createdAt: new Date().toISOString() },
-        { id: '18', name: 'Shopping', type: 'expense', createdAt: new Date().toISOString() },
-        
-        // Income categories
-        { id: '19', name: 'Salary', type: 'income', createdAt: new Date().toISOString() },
-        { id: '20', name: 'Freelance', type: 'income', createdAt: new Date().toISOString() },
-        { id: '21', name: 'Investment', type: 'income', createdAt: new Date().toISOString() },
-        { id: '22', name: 'Serviços Mensais', type: 'income', createdAt: new Date().toISOString() },
-        { id: '23', name: 'Holerite/Extras', type: 'income', createdAt: new Date().toISOString() },
-        { id: '24', name: 'Aplicações/Cotas/Retornos', type: 'income', createdAt: new Date().toISOString() },
-        { id: '25', name: 'Contribuição', type: 'income', createdAt: new Date().toISOString() },
-        { id: '26', name: 'Ressarcimento', type: 'income', createdAt: new Date().toISOString() },
-        { id: '27', name: 'Transferência', type: 'income', createdAt: new Date().toISOString() },
-      ];
-      setCategories(defaultCategories);
-    }
-  }, []);
-
-  // Save data to localStorage whenever state changes
-  useEffect(() => {
-    localStorage.setItem('finance-expenses', JSON.stringify(expenses));
-  }, [expenses]);
-
-  useEffect(() => {
-    localStorage.setItem('finance-income', JSON.stringify(income));
-  }, [income]);
-
-  useEffect(() => {
-    localStorage.setItem('finance-categories', JSON.stringify(categories));
-  }, [categories]);
-
-  useEffect(() => {
-    localStorage.setItem('finance-filters', JSON.stringify(filters));
-  }, [filters]);
-
-  // Helper function to get current user ID
-
-  // Helper function to sync to Supabase
-  const syncToSupabase = async (table: string, data: any) => {
-    if (!isSupabaseConnected) return;
-    
-    try {
-      const { error } = await supabase.from(table).upsert(data);
-      if (error) {
-        console.error(`❌ Erro ao sincronizar ${table}:`, error);
-      } else {
-        console.log(`✅ ${table} sincronizado com sucesso`);
-      }
-    } catch (error) {
-      console.error(`❌ Erro na sincronização ${table}:`, error);
-    }
-  };
+    fetchData();
+  }, [currentUser]);
 
   const addExpense = async (expense: Omit<Expense, 'id' | 'createdAt'>) => {
     if (!currentUser) {
@@ -183,32 +170,56 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
       return;
     }
 
-    const newExpense: Expense = {
-      ...expense,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-    };
-    setExpenses(prev => [...prev, newExpense]);
+    try {
+      const { data, error } = await supabase
+        .from('expenses')
+        .insert({
+          date: expense.date,
+          category: expense.category,
+          description: expense.description,
+          amount: expense.amount,
+          payment_method: expense.paymentMethod,
+          location: expense.location || null,
+          paid: expense.paid || false,
+          is_installment: expense.isInstallment || false,
+          installment_number: expense.installmentNumber || null,
+          total_installments: expense.totalInstallments || null,
+          installment_group: expense.installmentGroup || null,
+          due_date: expense.dueDate || null,
+          is_credit_card: expense.isCreditCard || false,
+          user_id: currentUser.id,
+        })
+        .select()
+        .single();
 
-    // Sync to Supabase immediately
-    await syncToSupabase('expenses', {
-      id: newExpense.id,
-      date: newExpense.date,
-      category: newExpense.category,
-      description: newExpense.description,
-      amount: newExpense.amount,
-      payment_method: newExpense.paymentMethod,
-      location: newExpense.location || null,
-      paid: newExpense.paid || false,
-      is_installment: newExpense.isInstallment || false,
-      installment_number: newExpense.installmentNumber || null,
-      total_installments: newExpense.totalInstallments || null,
-      installment_group: newExpense.installmentGroup || null,
-      due_date: newExpense.dueDate || null,
-      is_credit_card: newExpense.isCreditCard || false,
-      user_id: currentUser.id,
-      created_at: newExpense.createdAt,
-    });
+      if (error) {
+        console.error('❌ Erro ao adicionar despesa:', error);
+        return;
+      }
+
+      const newExpense: Expense = {
+        id: data.id,
+        date: data.date,
+        category: data.category,
+        description: data.description,
+        amount: parseFloat(data.amount.toString()),
+        paymentMethod: data.payment_method,
+        location: data.location,
+        paid: data.paid,
+        isInstallment: data.is_installment,
+        installmentNumber: data.installment_number,
+        totalInstallments: data.total_installments,
+        installmentGroup: data.installment_group,
+        dueDate: data.due_date,
+        isCreditCard: data.is_credit_card,
+        createdAt: data.created_at,
+      };
+
+      setExpenses(prev => [newExpense, ...prev]);
+      console.log('✅ Despesa adicionada');
+    } catch (error) {
+      console.error('❌ Erro ao adicionar despesa:', error);
+    }
   };
 
   const addIncome = async (income: Omit<Income, 'id' | 'createdAt'>) => {
@@ -217,25 +228,42 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
       return;
     }
 
-    const newIncome: Income = {
-      ...income,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-    };
-    setIncome(prev => [...prev, newIncome]);
+    try {
+      const { data, error } = await supabase
+        .from('income')
+        .insert({
+          date: income.date,
+          source: income.source,
+          amount: income.amount,
+          notes: income.notes || '',
+          location: income.location || null,
+          account: income.account || null,
+          user_id: currentUser.id,
+        })
+        .select()
+        .single();
 
-    // Sync to Supabase immediately
-    await syncToSupabase('income', {
-      id: newIncome.id,
-      date: newIncome.date,
-      source: newIncome.source,
-      amount: newIncome.amount,
-      notes: newIncome.notes || '',
-      location: newIncome.location || null,
-      account: newIncome.account || null,
-      user_id: currentUser.id,
-      created_at: newIncome.createdAt,
-    });
+      if (error) {
+        console.error('❌ Erro ao adicionar receita:', error);
+        return;
+      }
+
+      const newIncome: Income = {
+        id: data.id,
+        date: data.date,
+        source: data.source,
+        amount: parseFloat(data.amount.toString()),
+        notes: data.notes,
+        location: data.location,
+        account: data.account,
+        createdAt: data.created_at,
+      };
+
+      setIncome(prev => [newIncome, ...prev]);
+      console.log('✅ Receita adicionada');
+    } catch (error) {
+      console.error('❌ Erro ao adicionar receita:', error);
+    }
   };
 
   const addCategory = async (category: Omit<Category, 'id' | 'createdAt'>) => {
@@ -244,21 +272,34 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
       return;
     }
 
-    const newCategory: Category = {
-      ...category,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-    };
-    setCategories(prev => [...prev, newCategory]);
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .insert({
+          name: category.name,
+          type: category.type,
+          user_id: currentUser.id,
+        })
+        .select()
+        .single();
 
-    // Sync to Supabase immediately
-    await syncToSupabase('categories', {
-      id: newCategory.id,
-      name: newCategory.name,
-      type: newCategory.type,
-      user_id: currentUser.id,
-      created_at: newCategory.createdAt,
-    });
+      if (error) {
+        console.error('❌ Erro ao adicionar categoria:', error);
+        return;
+      }
+
+      const newCategory: Category = {
+        id: data.id,
+        name: data.name,
+        type: data.type,
+        createdAt: data.created_at,
+      };
+
+      setCategories(prev => [...prev, newCategory]);
+      console.log('✅ Categoria adicionada');
+    } catch (error) {
+      console.error('❌ Erro ao adicionar categoria:', error);
+    }
   };
 
   const updateExpense = async (id: string, updatedExpense: Partial<Expense>) => {
@@ -267,32 +308,35 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
       return;
     }
 
-    setExpenses(prev => prev.map(expense => 
-      expense.id === id ? { ...expense, ...updatedExpense } : expense
-    ));
+    try {
+      const updateData: any = {};
+      if (updatedExpense.date !== undefined) updateData.date = updatedExpense.date;
+      if (updatedExpense.category !== undefined) updateData.category = updatedExpense.category;
+      if (updatedExpense.description !== undefined) updateData.description = updatedExpense.description;
+      if (updatedExpense.amount !== undefined) updateData.amount = updatedExpense.amount;
+      if (updatedExpense.paymentMethod !== undefined) updateData.payment_method = updatedExpense.paymentMethod;
+      if (updatedExpense.location !== undefined) updateData.location = updatedExpense.location;
+      if (updatedExpense.paid !== undefined) updateData.paid = updatedExpense.paid;
+      if (updatedExpense.isCreditCard !== undefined) updateData.is_credit_card = updatedExpense.isCreditCard;
+      if (updatedExpense.dueDate !== undefined) updateData.due_date = updatedExpense.dueDate;
 
-    // Find the updated expense and sync to Supabase
-    const expense = expenses.find(e => e.id === id);
-    if (expense && isSupabaseConnected) {
-      const updatedData = { ...expense, ...updatedExpense };
-      await syncToSupabase('expenses', {
-        id: updatedData.id,
-        date: updatedData.date,
-        category: updatedData.category,
-        description: updatedData.description,
-        amount: updatedData.amount,
-        payment_method: updatedData.paymentMethod,
-        location: updatedData.location || null,
-        paid: updatedData.paid || false,
-        is_installment: updatedData.isInstallment || false,
-        installment_number: updatedData.installmentNumber || null,
-        total_installments: updatedData.totalInstallments || null,
-        installment_group: updatedData.installmentGroup || null,
-        due_date: updatedData.dueDate || null,
-        is_credit_card: updatedData.isCreditCard || false,
-        user_id: currentUser.id,
-        created_at: updatedData.createdAt,
-      });
+      const { error } = await supabase
+        .from('expenses')
+        .update(updateData)
+        .eq('id', id)
+        .eq('user_id', currentUser.id);
+
+      if (error) {
+        console.error('❌ Erro ao atualizar despesa:', error);
+        return;
+      }
+
+      setExpenses(prev => prev.map(expense => 
+        expense.id === id ? { ...expense, ...updatedExpense } : expense
+      ));
+      console.log('✅ Despesa atualizada');
+    } catch (error) {
+      console.error('❌ Erro ao atualizar despesa:', error);
     }
   };
 
@@ -302,25 +346,32 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
       return;
     }
 
-    setIncome(prev => prev.map(income => 
-      income.id === id ? { ...income, ...updatedIncome } : income
-    ));
+    try {
+      const updateData: any = {};
+      if (updatedIncome.date !== undefined) updateData.date = updatedIncome.date;
+      if (updatedIncome.source !== undefined) updateData.source = updatedIncome.source;
+      if (updatedIncome.amount !== undefined) updateData.amount = updatedIncome.amount;
+      if (updatedIncome.notes !== undefined) updateData.notes = updatedIncome.notes;
+      if (updatedIncome.location !== undefined) updateData.location = updatedIncome.location;
+      if (updatedIncome.account !== undefined) updateData.account = updatedIncome.account;
 
-    // Find the updated income and sync to Supabase
-    const incomeItem = income.find(i => i.id === id);
-    if (incomeItem && isSupabaseConnected) {
-      const updatedData = { ...incomeItem, ...updatedIncome };
-      await syncToSupabase('income', {
-        id: updatedData.id,
-        date: updatedData.date,
-        source: updatedData.source,
-        amount: updatedData.amount,
-        notes: updatedData.notes || '',
-        location: updatedData.location || null,
-        account: updatedData.account || null,
-        user_id: currentUser.id,
-        created_at: updatedData.createdAt,
-      });
+      const { error } = await supabase
+        .from('income')
+        .update(updateData)
+        .eq('id', id)
+        .eq('user_id', currentUser.id);
+
+      if (error) {
+        console.error('❌ Erro ao atualizar receita:', error);
+        return;
+      }
+
+      setIncome(prev => prev.map(income => 
+        income.id === id ? { ...income, ...updatedIncome } : income
+      ));
+      console.log('✅ Receita atualizada');
+    } catch (error) {
+      console.error('❌ Erro ao atualizar receita:', error);
     }
   };
 
@@ -330,21 +381,28 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
       return;
     }
 
-    setCategories(prev => prev.map(category => 
-      category.id === id ? { ...category, ...updatedCategory } : category
-    ));
+    try {
+      const updateData: any = {};
+      if (updatedCategory.name !== undefined) updateData.name = updatedCategory.name;
+      if (updatedCategory.type !== undefined) updateData.type = updatedCategory.type;
 
-    // Find the updated category and sync to Supabase
-    const category = categories.find(c => c.id === id);
-    if (category && isSupabaseConnected) {
-      const updatedData = { ...category, ...updatedCategory };
-      await syncToSupabase('categories', {
-        id: updatedData.id,
-        name: updatedData.name,
-        type: updatedData.type,
-        user_id: currentUser.id,
-        created_at: updatedData.createdAt,
-      });
+      const { error } = await supabase
+        .from('categories')
+        .update(updateData)
+        .eq('id', id)
+        .eq('user_id', currentUser.id);
+
+      if (error) {
+        console.error('❌ Erro ao atualizar categoria:', error);
+        return;
+      }
+
+      setCategories(prev => prev.map(category => 
+        category.id === id ? { ...category, ...updatedCategory } : category
+      ));
+      console.log('✅ Categoria atualizada');
+    } catch (error) {
+      console.error('❌ Erro ao atualizar categoria:', error);
     }
   };
 
@@ -354,20 +412,22 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
       return;
     }
 
-    setExpenses(prev => prev.filter(expense => expense.id !== id));
+    try {
+      const { error } = await supabase
+        .from('expenses')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', currentUser.id);
 
-    // Delete from Supabase
-    if (isSupabaseConnected) {
-      try {
-        const { error } = await supabase.from('expenses').delete().eq('id', id);
-        if (error) {
-          console.error('❌ Erro ao deletar despesa do Supabase:', error);
-        } else {
-          console.log('✅ Despesa deletada do Supabase');
-        }
-      } catch (error) {
-        console.error('❌ Erro na deleção:', error);
+      if (error) {
+        console.error('❌ Erro ao deletar despesa:', error);
+        return;
       }
+
+      setExpenses(prev => prev.filter(expense => expense.id !== id));
+      console.log('✅ Despesa deletada');
+    } catch (error) {
+      console.error('❌ Erro ao deletar despesa:', error);
     }
   };
 
@@ -377,20 +437,22 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
       return;
     }
 
-    setIncome(prev => prev.filter(income => income.id !== id));
+    try {
+      const { error } = await supabase
+        .from('income')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', currentUser.id);
 
-    // Delete from Supabase
-    if (isSupabaseConnected) {
-      try {
-        const { error } = await supabase.from('income').delete().eq('id', id);
-        if (error) {
-          console.error('❌ Erro ao deletar receita do Supabase:', error);
-        } else {
-          console.log('✅ Receita deletada do Supabase');
-        }
-      } catch (error) {
-        console.error('❌ Erro na deleção:', error);
+      if (error) {
+        console.error('❌ Erro ao deletar receita:', error);
+        return;
       }
+
+      setIncome(prev => prev.filter(income => income.id !== id));
+      console.log('✅ Receita deletada');
+    } catch (error) {
+      console.error('❌ Erro ao deletar receita:', error);
     }
   };
 
@@ -400,20 +462,22 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
       return;
     }
 
-    setCategories(prev => prev.filter(category => category.id !== id));
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', currentUser.id);
 
-    // Delete from Supabase
-    if (isSupabaseConnected) {
-      try {
-        const { error } = await supabase.from('categories').delete().eq('id', id);
-        if (error) {
-          console.error('❌ Erro ao deletar categoria do Supabase:', error);
-        } else {
-          console.log('✅ Categoria deletada do Supabase');
-        }
-      } catch (error) {
-        console.error('❌ Erro na deleção:', error);
+      if (error) {
+        console.error('❌ Erro ao deletar categoria:', error);
+        return;
       }
+
+      setCategories(prev => prev.filter(category => category.id !== id));
+      console.log('✅ Categoria deletada');
+    } catch (error) {
+      console.error('❌ Erro ao deletar categoria:', error);
     }
   };
 
@@ -441,6 +505,7 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
         deleteIncome,
         deleteCategory,
         updateFilters,
+        isLoading,
       }}
     >
       {children}

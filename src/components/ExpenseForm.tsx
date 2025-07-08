@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, Plus, Minus } from 'lucide-react';
 import { useFinance } from '../context/FinanceContext';
+import { useAccounts } from '../context/AccountContext';
 import { useSettings } from '../context/SettingsContext';
 import { Expense } from '../types';
 
@@ -11,17 +12,18 @@ interface ExpenseFormProps {
 
 const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
   const { addExpense, updateExpense, categories } = useFinance();
+  const { accounts } = useAccounts();
   const { settings } = useSettings();
   const [formData, setFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
     category: '',
-    description: '',
     amount: '',
-    paymentMethod: 'Credit Card',
+    account: '',
+    description: '',
     location: '',
+    isCreditCard: false,
     isInstallment: false,
     totalInstallments: 1,
-    isCreditCard: false,
-    firstDueDate: new Date().toISOString().split('T')[0],
   });
 
   const [installmentDates, setInstallmentDates] = useState<string[]>([]);
@@ -29,15 +31,15 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
   useEffect(() => {
     if (expense) {
       setFormData({
+        date: expense.date,
         category: expense.category,
-        description: expense.description,
         amount: expense.amount.toString().replace('.', ','),
-        paymentMethod: expense.paymentMethod,
+        account: expense.paymentMethod,
+        description: expense.description,
         location: expense.location || '',
+        isCreditCard: expense.isCreditCard || false,
         isInstallment: expense.isInstallment || false,
         totalInstallments: expense.totalInstallments || 1,
-        isCreditCard: expense.isCreditCard || false,
-        firstDueDate: expense.dueDate || new Date().toISOString().split('T')[0],
       });
 
       if (expense.isInstallment && expense.dueDate) {
@@ -50,7 +52,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
     if (formData.isInstallment) {
       // Generate dates maintaining the same day of month
       const dates = [];
-      const baseDate = new Date(formData.firstDueDate);
+      const baseDate = new Date(formData.date);
       
       for (let i = 0; i < formData.totalInstallments; i++) {
         const installmentDate = new Date(baseDate);
@@ -62,7 +64,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
     } else {
       setInstallmentDates([]);
     }
-  }, [formData.isInstallment, formData.totalInstallments, formData.firstDueDate]);
+  }, [formData.isInstallment, formData.totalInstallments, formData.date]);
 
   const handleInstallmentDateChange = (index: number, date: string) => {
     const newDates = [...installmentDates];
@@ -79,7 +81,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.category || !formData.amount) {
+    if (!formData.category || !formData.amount || !formData.account) {
       alert('Por favor, preencha todos os campos obrigatórios');
       return;
     }
@@ -98,17 +100,17 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
       
       for (let i = 0; i < formData.totalInstallments; i++) {
         const expenseData = {
-          date: installmentDates[i] || formData.firstDueDate,
+          date: installmentDates[i] || formData.date,
           category: formData.category,
-          description: formData.description, // Clean description without installment info
+          description: formData.description,
           amount: installmentAmount,
-          paymentMethod: formData.paymentMethod,
+          paymentMethod: formData.account,
           location: formData.location,
           isInstallment: true,
           installmentNumber: i + 1,
           totalInstallments: formData.totalInstallments,
           installmentGroup: installmentGroup,
-          dueDate: installmentDates[i] || formData.firstDueDate,
+          dueDate: installmentDates[i] || formData.date,
           isCreditCard: formData.isCreditCard,
           paid: false,
         };
@@ -118,17 +120,17 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
     } else {
       // Single expense or update existing
       const expenseData = {
-        date: formData.isInstallment ? installmentDates[0] : formData.firstDueDate,
+        date: formData.date,
         category: formData.category,
-        description: formData.description, // Clean description
+        description: formData.description,
         amount: baseAmount,
-        paymentMethod: formData.paymentMethod,
+        paymentMethod: formData.account,
         location: formData.location,
         isInstallment: formData.isInstallment,
         installmentNumber: expense?.installmentNumber,
         totalInstallments: expense?.totalInstallments,
         installmentGroup: expense?.installmentGroup,
-        dueDate: formData.isInstallment ? installmentDates[0] : formData.firstDueDate,
+        dueDate: formData.isInstallment ? installmentDates[0] : formData.date,
         isCreditCard: formData.isCreditCard,
         paid: expense?.paid || false,
       };
@@ -147,16 +149,16 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
 
   const labels = {
     title: expense ? 'Editar Despesa' : 'Adicionar Despesa',
+    date: 'Data',
     category: 'Categoria',
-    description: 'Descrição',
     amount: 'Valor (R$)',
-    paymentMethod: 'Método de Pagamento',
+    account: 'Conta',
+    description: 'Descrição',
     location: 'Local/Pessoa',
+    creditCard: 'Cartão de Crédito',
     installment: 'Parcelar esta despesa',
     installments: 'Número de Parcelas',
-    firstDueDate: 'Data do Primeiro Vencimento',
     dueDates: 'Datas de Vencimento das Parcelas',
-    creditCard: 'Cartão de Crédito',
     cancel: 'Cancelar',
     save: expense ? 'Atualizar' : 'Adicionar',
     perInstallment: 'Valor por parcela',
@@ -181,6 +183,19 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {labels.date} <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 {labels.category} <span className="text-red-500">*</span>
               </label>
               <select
@@ -195,7 +210,9 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
                 ))}
               </select>
             </div>
+          </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 {labels.amount} <span className="text-red-500">*</span>
@@ -213,6 +230,23 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
                   {labels.perInstallment}: R$ {(parseFloat(formData.amount.replace(',', '.')) / formData.totalInstallments).toFixed(2).replace('.', ',')}
                 </p>
               )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {labels.account} <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.account}
+                onChange={(e) => setFormData({ ...formData, account: e.target.value })}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                required
+              >
+                <option value="">Selecione uma conta</option>
+                {accounts.map(account => (
+                  <option key={account.id} value={account.name}>{account.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -240,26 +274,6 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
               className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               placeholder="Ex: Supermercado, João Silva, etc."
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {labels.paymentMethod}
-            </label>
-            <select
-              value={formData.paymentMethod}
-              onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-            >
-              <option value="Viacredi - Tatiane">Viacredi - Tatiane</option>
-              <option value="Viacredi - Dirceu">Viacredi - Dirceu</option>
-              <option value="Mercado Pago">Mercado Pago</option>
-              <option value="Carteira - Tatiane">Carteira - Tatiane</option>
-              <option value="Carteira - Dirceu">Carteira - Dirceu</option>
-              <option value="UtilAlimentação">UtilAlimentação</option>
-              <option value="Banco do Brasil">Banco do Brasil</option>
-              <option value="Nubank">Nubank</option>
-            </select>
           </div>
 
           {/* Credit Card Option */}
@@ -294,57 +308,43 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
 
             {formData.isInstallment && (
               <div className="space-y-4 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      {labels.firstDueDate}
-                    </label>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {labels.installments}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ 
+                        ...formData, 
+                        totalInstallments: Math.max(1, formData.totalInstallments - 1) 
+                      })}
+                      className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                      disabled={formData.totalInstallments <= 1}
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
                     <input
-                      type="date"
-                      value={formData.firstDueDate}
-                      onChange={(e) => setFormData({ ...formData, firstDueDate: e.target.value })}
-                      className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      type="number"
+                      min="1"
+                      max="60"
+                      value={formData.totalInstallments}
+                      onChange={(e) => setFormData({ 
+                        ...formData, 
+                        totalInstallments: Math.max(1, parseInt(e.target.value) || 1) 
+                      })}
+                      className="w-20 text-center border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                     />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      {labels.installments}
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ 
-                          ...formData, 
-                          totalInstallments: Math.max(1, formData.totalInstallments - 1) 
-                        })}
-                        className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                        disabled={formData.totalInstallments <= 1}
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <input
-                        type="number"
-                        min="1"
-                        max="60"
-                        value={formData.totalInstallments}
-                        onChange={(e) => setFormData({ 
-                          ...formData, 
-                          totalInstallments: Math.max(1, parseInt(e.target.value) || 1) 
-                        })}
-                        className="w-20 text-center border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ 
-                          ...formData, 
-                          totalInstallments: Math.min(60, formData.totalInstallments + 1) 
-                        })}
-                        className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ 
+                        ...formData, 
+                        totalInstallments: Math.min(60, formData.totalInstallments + 1) 
+                      })}
+                      className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 

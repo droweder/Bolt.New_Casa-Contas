@@ -4,13 +4,8 @@ import { User } from '../types';
 
 interface AuthContextType {
   currentUser: User | null;
-  users: User[];
-  login: (username: string, password: string) => Promise<boolean>;
-  login: (inputIdentifier: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  addUser: (userData: Omit<User, 'id' | 'createdAt'>) => void;
-  updateUser: (id: string, userData: Partial<User>) => void;
-  deleteUser: (id: string) => void;
   isAuthenticated: boolean;
   authToken: string | null;
 }
@@ -29,218 +24,127 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Usuário admin padrão - sempre disponível
-const DEFAULT_ADMIN: User = {
-  id: 'admin-1',
-  username: 'admin',
-  password: '123456',
-  isAdmin: true,
-  createdAt: new Date().toISOString(),
-};
-
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [users, setUsers] = useState<User[]>([DEFAULT_ADMIN]);
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Carregar dados salvos
+  // Verificar sessão existente ao carregar
   useEffect(() => {
-    try {
-      const savedUsers = localStorage.getItem('finance-users');
-      if (savedUsers) {
-        const parsedUsers = JSON.parse(savedUsers);
-        // Garantir que o admin sempre existe
-        const hasAdmin = parsedUsers.some((u: User) => u.username === 'admin');
-        if (!hasAdmin) {
-          setUsers([DEFAULT_ADMIN, ...parsedUsers]);
-        } else {
-          setUsers(parsedUsers);
-        }
-      } else {
-        // Se não há dados salvos, usar apenas o admin padrão
-        setUsers([DEFAULT_ADMIN]);
-      }
-
-      // Verificar usuário logado
-      const savedCurrentUser = localStorage.getItem('finance-current-user');
-      const savedAuthToken = localStorage.getItem('finance-auth-token');
-      
-      if (savedCurrentUser && savedAuthToken) {
-        const parsedUser = JSON.parse(savedCurrentUser);
-        setCurrentUser(parsedUser);
-        setAuthToken(savedAuthToken);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-      // Em caso de erro, garantir que pelo menos o admin existe
-      setUsers([DEFAULT_ADMIN]);
-      localStorage.removeItem('finance-current-user');
-      localStorage.removeItem('finance-users');
-      localStorage.removeItem('finance-auth-token');
-    }
-  }, []);
-
-  // Salvar usuários no localStorage
-  useEffect(() => {
-    if (users.length > 0) {
-      localStorage.setItem('finance-users', JSON.stringify(users));
-    }
-  }, [users]);
-
-  // Salvar usuário atual no localStorage
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('finance-current-user', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('finance-current-user');
-    }
-  }, [currentUser]);
-
-  // Salvar token de autenticação
-  useEffect(() => {
-    if (authToken) {
-      localStorage.setItem('finance-auth-token', authToken);
-    } else {
-      localStorage.removeItem('finance-auth-token');
-    }
-  }, [authToken]);
-
-  const login = async (inputIdentifier: string, password: string): Promise<boolean> => {
-    console.log('🔐 Tentativa de login:', { inputIdentifier, password });
-    
-    try {
-      // Se contém @, tentar autenticação Supabase primeiro
-      if (inputIdentifier.includes('@')) {
-        console.log('🔄 Tentando autenticação Supabase...');
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: inputIdentifier,
-          password: password,
-        });
-
-        if (data.user && !error) {
-          // Autenticação Supabase bem-sucedida
+    const checkSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (session && session.user && !error) {
           const user: User = {
-            id: data.user.id, // Usar ID do Supabase
-            username: inputIdentifier, // Usar email como username
-            password: password,
-            isAdmin: inputIdentifier === 'droweder@gmail.com', // Admin baseado no email
-            createdAt: new Date().toISOString(),
+            id: session.user.id,
+            username: session.user.email || '',
+            password: '', // Não armazenamos senha
+            isAdmin: session.user.email === 'droweder@gmail.com',
+            createdAt: session.user.created_at || new Date().toISOString(),
           };
           
           setCurrentUser(user);
-          setAuthToken(data.session?.access_token || null);
-          console.log('🎉 Login Supabase realizado com sucesso!', { userId: data.user.id });
-          return true;
+          setAuthToken(session.access_token);
+          console.log('✅ Sessão existente encontrada');
         } else {
-          console.log('⚠️ Falha na autenticação Supabase:', error?.message);
+          console.log('ℹ️ Nenhuma sessão ativa encontrada');
+        }
+      } catch (error) {
+        console.error('❌ Erro ao verificar sessão:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkSession();
+
+    // Escutar mudanças de autenticação
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('🔄 Auth state changed:', event);
+        
+        if (session && session.user) {
+          const user: User = {
+            id: session.user.id,
+            username: session.user.email || '',
+            password: '',
+            isAdmin: session.user.email === 'droweder@gmail.com',
+            createdAt: session.user.created_at || new Date().toISOString(),
+          };
+          
+          setCurrentUser(user);
+          setAuthToken(session.access_token);
+        } else {
+          setCurrentUser(null);
+          setAuthToken(null);
         }
       }
-    } catch (supabaseError: any) {
-      console.log('⚠️ Erro na autenticação Supabase:', supabaseError?.message);
-    }
-
-    // Fallback para autenticação local
-    console.log('🔄 Tentando autenticação local...');
-    const localUser = users.find(user => 
-      user.username === inputIdentifier && user.password === password
     );
 
-    if (localUser) {
-      setCurrentUser(localUser);
-      const localToken = btoa(`${inputIdentifier}:${Date.now()}`);
-      setAuthToken(localToken);
-      console.log('🎉 Login local realizado com sucesso!');
-      return true;
-    }
+    return () => subscription.unsubscribe();
+  }, []);
 
-    // Tentar autenticação com Supabase usando email fictício para usuários locais
+  const login = async (email: string, password: string): Promise<boolean> => {
+    console.log('🔐 Tentativa de login:', { email });
+    
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: `${inputIdentifier}@finance.local`,
+        email: email,
         password: password,
       });
 
-      if (data.user && !error) {
+      if (data.user && data.session && !error) {
         const user: User = {
           id: data.user.id,
-          username: inputIdentifier,
-          password: password,
-          isAdmin: inputIdentifier === 'admin',
-          createdAt: new Date().toISOString(),
+          username: data.user.email || '',
+          password: '',
+          isAdmin: data.user.email === 'droweder@gmail.com',
+          createdAt: data.user.created_at || new Date().toISOString(),
         };
         
         setCurrentUser(user);
-        setAuthToken(data.session?.access_token || null);
-        console.log('🎉 Login Supabase com email fictício realizado com sucesso!');
+        setAuthToken(data.session.access_token);
+        console.log('🎉 Login realizado com sucesso!');
         return true;
+      } else {
+        console.log('❌ Falha na autenticação:', error?.message);
+        return false;
       }
-    } catch (supabaseError: any) {
-      console.log('⚠️ Erro na autenticação Supabase com email fictício:', supabaseError?.message);
+    } catch (error: any) {
+      console.error('❌ Erro no login:', error?.message);
+      return false;
     }
-    
-    console.log('❌ Login falhou - credenciais inválidas');
-    return false;
   };
 
   const logout = async () => {
     try {
-      // Tentar logout do Supabase
       await supabase.auth.signOut();
-    } catch (error) {
-      console.log('Erro no logout Supabase:', error);
-    }
-    
-    setCurrentUser(null);
-    setAuthToken(null);
-    console.log('👋 Logout realizado');
-  };
-
-  const addUser = (userData: Omit<User, 'id' | 'createdAt'>) => {
-    const newUser: User = {
-      ...userData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-    };
-    setUsers(prev => [...prev, newUser]);
-  };
-
-  const updateUser = (id: string, userData: Partial<User>) => {
-    setUsers(prev => prev.map(user => 
-      user.id === id ? { ...user, ...userData } : user
-    ));
-    
-    // Se o usuário atual foi atualizado, atualizar também o currentUser
-    if (currentUser && currentUser.id === id) {
-      setCurrentUser(prev => prev ? { ...prev, ...userData } : null);
-    }
-  };
-
-  const deleteUser = (id: string) => {
-    // Não permitir deletar o admin padrão
-    if (id === DEFAULT_ADMIN.id) {
-      alert('Não é possível deletar o usuário administrador padrão');
-      return;
-    }
-    
-    setUsers(prev => prev.filter(user => user.id !== id));
-    
-    // Se o usuário atual foi deletado, fazer logout
-    if (currentUser && currentUser.id === id) {
       setCurrentUser(null);
       setAuthToken(null);
+      console.log('👋 Logout realizado');
+    } catch (error) {
+      console.error('❌ Erro no logout:', error);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Verificando autenticação...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider
       value={{
         currentUser,
-        users,
         login,
         logout,
-        addUser,
-        updateUser,
-        deleteUser,
         isAuthenticated: !!currentUser,
         authToken,
       }}

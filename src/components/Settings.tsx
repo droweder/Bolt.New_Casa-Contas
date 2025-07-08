@@ -311,7 +311,7 @@ const Settings: React.FC = () => {
             <div className="space-y-4 max-h-96 overflow-y-auto">
               {/* Categorias de Despesas */}
               <div>
-                <h4 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                <h4 className="sticky top-0 bg-white dark:bg-gray-800 py-2 z-10 font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
                   <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                   Despesas ({expenseCategories.length})
                 </h4>
@@ -340,7 +340,7 @@ const Settings: React.FC = () => {
 
               {/* Categorias de Receitas */}
               <div>
-                <h4 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                <h4 className="sticky top-0 bg-white dark:bg-gray-800 py-2 z-10 font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                   Receitas ({incomeCategories.length})
                 </h4>

@@ -66,7 +66,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ category, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md">
-        <div className="flex items-center justify-between mb-6">
+        <div className="sticky top-0 bg-white dark:bg-gray-800 pb-4 z-10 flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             {labels.title}
           </h2>

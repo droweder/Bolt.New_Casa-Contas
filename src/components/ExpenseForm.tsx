@@ -4,6 +4,7 @@ import { useFinance } from '../context/FinanceContext';
 import { useAccounts } from '../context/AccountContext';
 import { useSettings } from '../context/SettingsContext';
 import { Expense } from '../types';
+import { formatDateForInput, formatDateForStorage, getCurrentDateForInput } from '../utils/dateUtils';
 
 interface ExpenseFormProps {
   expense?: Expense | null;
@@ -15,7 +16,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
   const { accounts } = useAccounts();
   const { settings } = useSettings();
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: getCurrentDateForInput(),
     category: '',
     amount: '',
     account: '',
@@ -31,7 +32,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
   useEffect(() => {
     if (expense) {
       setFormData({
-        date: expense.date,
+        date: formatDateForInput(expense.date),
         category: expense.category,
         amount: expense.amount.toString().replace('.', ','),
         account: expense.paymentMethod,
@@ -41,6 +42,10 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
         isInstallment: expense.isInstallment || false,
         totalInstallments: expense.totalInstallments || 1,
       });
+
+      if (expense.isInstallment && expense.dueDate) {
+        setInstallmentDates([formatDateForInput(expense.dueDate)]);
+      }
     }
   }, [expense]);
 
@@ -96,7 +101,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
       
       for (let i = 0; i < formData.totalInstallments; i++) {
         const expenseData = {
-          date: installmentDates[i] || formData.date,
+          date: formatDateForStorage(installmentDates[i] || formData.date),
           category: formData.category,
           description: formData.description,
           amount: installmentAmount,
@@ -106,7 +111,9 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
           installmentNumber: i + 1,
           totalInstallments: formData.totalInstallments,
           installmentGroup: installmentGroup,
+          dueDate: formatDateForStorage(installmentDates[i] || formData.date),
           isCreditCard: formData.isCreditCard,
+          paid: false,
         };
 
         addExpense(expenseData);
@@ -114,7 +121,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
     } else {
       // Single expense or update existing
       const expenseData = {
-        date: formData.date,
+        date: formatDateForStorage(formData.date),
         category: formData.category,
         description: formData.description,
         amount: baseAmount,
@@ -124,7 +131,9 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
         installmentNumber: expense?.installmentNumber,
         totalInstallments: expense?.totalInstallments,
         installmentGroup: expense?.installmentGroup,
+        dueDate: formData.isInstallment ? formatDateForStorage(installmentDates[0] || formData.date) : formatDateForStorage(formData.date),
         isCreditCard: formData.isCreditCard,
+        paid: expense?.paid || false,
       };
 
       if (expense) {
@@ -150,7 +159,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
     creditCard: 'Cartão de Crédito',
     installment: 'Parcelar esta despesa',
     installments: 'Número de Parcelas',
-    dueDates: 'Datas das Parcelas',
+    dueDates: 'Datas de Vencimento das Parcelas',
     cancel: 'Cancelar',
     save: expense ? 'Atualizar' : 'Adicionar',
     perInstallment: 'Valor por parcela',

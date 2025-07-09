@@ -1,47 +1,73 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Expense, Income, Category, FilterState } from '../types';
-import { supabase } from '../lib/supabase';
-import { useAuth } from './AuthContext';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Expense, Income, Category } from '../types';
+import { formatDateForStorage } from '../utils/dateUtils';
 
 interface FinanceContextType {
   expenses: Expense[];
   income: Income[];
   categories: Category[];
-  filters: FilterState;
-  addExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => void;
-  addIncome: (income: Omit<Income, 'id' | 'createdAt'>) => void;
-  addCategory: (category: Omit<Category, 'id' | 'createdAt'>) => void;
+  addExpense: (expense: Omit<Expense, 'id'>) => void;
   updateExpense: (id: string, expense: Partial<Expense>) => void;
-  updateIncome: (id: string, income: Partial<Income>) => void;
-  updateCategory: (id: string, category: Partial<Category>) => void;
   deleteExpense: (id: string) => void;
+  addIncome: (income: Omit<Income, 'id'>) => void;
+  updateIncome: (id: string, income: Partial<Income>) => void;
   deleteIncome: (id: string) => void;
+  addCategory: (category: Omit<Category, 'id'>) => void;
+  updateCategory: (id: string, category: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
-  updateFilters: (section: keyof FilterState, newFilters: Partial<FilterState[keyof FilterState]>) => void;
-  isLoading: boolean;
+  filters: {
+    expenses: {
+      category: string;
+      account: string;
+      description: string;
+      location: string;
+      startDate: string;
+      endDate: string;
+      installmentGroup: string;
+    };
+    income: {
+      source: string;
+      account: string;
+      description: string;
+      location: string;
+      startDate: string;
+      endDate: string;
+    };
+  };
+  updateFilters: (type: 'expenses' | 'income', filters: any) => void;
 }
+
+const defaultCategories: Category[] = [
+  { id: '1', name: 'Alimentação', type: 'expense', color: '#ef4444' },
+  { id: '2', name: 'Transporte', type: 'expense', color: '#f97316' },
+  { id: '3', name: 'Moradia', type: 'expense', color: '#eab308' },
+  { id: '4', name: 'Saúde', type: 'expense', color: '#22c55e' },
+  { id: '5', name: 'Educação', type: 'expense', color: '#3b82f6' },
+  { id: '6', name: 'Lazer', type: 'expense', color: '#8b5cf6' },
+  { id: '7', name: 'Salário', type: 'income', color: '#10b981' },
+  { id: '8', name: 'Freelance', type: 'income', color: '#06b6d4' },
+  { id: '9', name: 'Investimentos', type: 'income', color: '#8b5cf6' },
+];
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
-export const useFinance = () => {
-  const context = useContext(FinanceContext);
-  if (!context) {
-    throw new Error('useFinance must be used within a FinanceProvider');
-  }
-  return context;
-};
+export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [expenses, setExpenses] = useState<Expense[]>(() => {
+    const saved = localStorage.getItem('financeExpenses');
+    return saved ? JSON.parse(saved) : [];
+  });
 
-interface FinanceProviderProps {
-  children: ReactNode;
-}
+  const [income, setIncome] = useState<Income[]>(() => {
+    const saved = localStorage.getItem('financeIncome');
+    return saved ? JSON.parse(saved) : [];
+  });
 
-export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) => {
-  const { currentUser } = useAuth();
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [income, setIncome] = useState<Income[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [filters, setFilters] = useState<FilterState>({
+  const [categories, setCategories] = useState<Category[]>(() => {
+    const saved = localStorage.getItem('financeCategories');
+    return saved ? JSON.parse(saved) : defaultCategories;
+  });
+
+  const [filters, setFilters] = useState({
     expenses: {
       category: '',
       account: '',
@@ -54,461 +80,128 @@ export const FinanceProvider: React.FC<FinanceProviderProps> = ({ children }) =>
     income: {
       source: '',
       account: '',
+      description: '',
+      location: '',
       startDate: '',
       endDate: '',
     },
-    dailySummary: {
-      startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      endDate: new Date().toISOString().split('T')[0],
-      visibleAccounts: [],
-      sortBy: 'date',
-      sortOrder: 'desc',
-    },
   });
 
-  // Buscar dados do Supabase quando o usuário estiver autenticado
   useEffect(() => {
-    const fetchData = async () => {
-      if (!currentUser) {
-        setExpenses([]);
-        setIncome([]);
-        setCategories([]);
-        setIsLoading(false);
-        return;
-      }
+    localStorage.setItem('financeExpenses', JSON.stringify(expenses));
+  }, [expenses]);
 
-      try {
-        setIsLoading(true);
+  useEffect(() => {
+    localStorage.setItem('financeIncome', JSON.stringify(income));
+  }, [income]);
 
-        // Buscar categorias
-        const { data: categoriesData, error: categoriesError } = await supabase
-          .from('categories')
-          .select('*')
-          .eq('user_id', currentUser.id)
-          .order('created_at', { ascending: true });
+  useEffect(() => {
+    localStorage.setItem('financeCategories', JSON.stringify(categories));
+  }, [categories]);
 
-        if (categoriesError) {
-          console.error('❌ Erro ao buscar categorias:', categoriesError);
-        } else {
-          const mappedCategories: Category[] = categoriesData.map(cat => ({
-            id: cat.id,
-            name: cat.name,
-            type: cat.type as 'income' | 'expense',
-            createdAt: cat.created_at,
-          }));
-          setCategories(mappedCategories);
-          console.log('✅ Categorias carregadas:', mappedCategories.length);
-        }
-
-        // Buscar despesas
-        const { data: expensesData, error: expensesError } = await supabase
-          .from('expenses')
-          .select('*')
-          .eq('user_id', currentUser.id)
-          .order('created_at', { ascending: false });
-
-        if (expensesError) {
-          console.error('❌ Erro ao buscar despesas:', expensesError);
-        } else {
-          const mappedExpenses: Expense[] = expensesData.map(exp => ({
-            id: exp.id,
-            date: exp.date,
-            category: exp.category,
-            description: exp.description,
-            amount: parseFloat(exp.amount.toString()),
-            paymentMethod: exp.payment_method,
-            location: exp.location,
-            paid: exp.paid,
-            isInstallment: exp.is_installment,
-            installmentNumber: exp.installment_number,
-            totalInstallments: exp.total_installments,
-            installmentGroup: exp.installment_group,
-            dueDate: exp.due_date,
-            isCreditCard: exp.is_credit_card,
-            createdAt: exp.created_at,
-          }));
-          setExpenses(mappedExpenses);
-          console.log('✅ Despesas carregadas:', mappedExpenses.length);
-        }
-
-        // Buscar receitas
-        const { data: incomeData, error: incomeError } = await supabase
-          .from('income')
-          .select('*')
-          .eq('user_id', currentUser.id)
-          .order('created_at', { ascending: false });
-
-        if (incomeError) {
-          console.error('❌ Erro ao buscar receitas:', incomeError);
-        } else {
-          const mappedIncome: Income[] = incomeData.map(inc => ({
-            id: inc.id,
-            date: inc.date,
-            source: inc.source,
-            amount: parseFloat(inc.amount.toString()),
-            notes: inc.notes,
-            location: inc.location,
-            account: inc.account,
-            createdAt: inc.created_at,
-          }));
-          setIncome(mappedIncome);
-          console.log('✅ Receitas carregadas:', mappedIncome.length);
-        }
-      } catch (error) {
-        console.error('❌ Erro ao buscar dados:', error);
-      } finally {
-        setIsLoading(false);
-      }
+  const addExpense = (expense: Omit<Expense, 'id'>) => {
+    const newExpense: Expense = {
+      ...expense,
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      date: formatDateForStorage(expense.date),
+      dueDate: expense.dueDate ? formatDateForStorage(expense.dueDate) : undefined,
     };
-
-    fetchData();
-  }, [currentUser]);
-
-  const addExpense = async (expense: Omit<Expense, 'id' | 'createdAt'>) => {
-    if (!currentUser) {
-      console.error('❌ Usuário não autenticado');
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('expenses')
-        .insert({
-          date: expense.date,
-          category: expense.category,
-          description: expense.description,
-          amount: expense.amount,
-          payment_method: expense.paymentMethod,
-          location: expense.location || null,
-          paid: expense.paid || false,
-          is_installment: expense.isInstallment || false,
-          installment_number: expense.installmentNumber || null,
-          total_installments: expense.totalInstallments || null,
-          installment_group: expense.installmentGroup || null,
-          due_date: expense.dueDate || null,
-          is_credit_card: expense.isCreditCard || false,
-          user_id: currentUser.id,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('❌ Erro ao adicionar despesa:', error);
-        return;
-      }
-
-      const newExpense: Expense = {
-        id: data.id,
-        date: data.date,
-        category: data.category,
-        description: data.description,
-        amount: parseFloat(data.amount.toString()),
-        paymentMethod: data.payment_method,
-        location: data.location,
-        paid: data.paid,
-        isInstallment: data.is_installment,
-        installmentNumber: data.installment_number,
-        totalInstallments: data.total_installments,
-        installmentGroup: data.installment_group,
-        dueDate: data.due_date,
-        isCreditCard: data.is_credit_card,
-        createdAt: data.created_at,
-      };
-
-      setExpenses(prev => [newExpense, ...prev]);
-      console.log('✅ Despesa adicionada');
-    } catch (error) {
-      console.error('❌ Erro ao adicionar despesa:', error);
-    }
+    setExpenses(prev => [...prev, newExpense]);
   };
 
-  const addIncome = async (income: Omit<Income, 'id' | 'createdAt'>) => {
-    if (!currentUser) {
-      console.error('❌ Usuário não autenticado');
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('income')
-        .insert({
-          date: income.date,
-          source: income.source,
-          amount: income.amount,
-          notes: income.notes || '',
-          location: income.location || null,
-          account: income.account || null,
-          user_id: currentUser.id,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('❌ Erro ao adicionar receita:', error);
-        return;
-      }
-
-      const newIncome: Income = {
-        id: data.id,
-        date: data.date,
-        source: data.source,
-        amount: parseFloat(data.amount.toString()),
-        notes: data.notes,
-        location: data.location,
-        account: data.account,
-        createdAt: data.created_at,
-      };
-
-      setIncome(prev => [newIncome, ...prev]);
-      console.log('✅ Receita adicionada');
-    } catch (error) {
-      console.error('❌ Erro ao adicionar receita:', error);
-    }
+  const updateExpense = (id: string, expense: Partial<Expense>) => {
+    setExpenses(prev => prev.map(item => 
+      item.id === id 
+        ? { 
+            ...item, 
+            ...expense,
+            date: expense.date ? formatDateForStorage(expense.date) : item.date,
+            dueDate: expense.dueDate ? formatDateForStorage(expense.dueDate) : item.dueDate,
+          }
+        : item
+    ));
   };
 
-  const addCategory = async (category: Omit<Category, 'id' | 'createdAt'>) => {
-    if (!currentUser) {
-      console.error('❌ Usuário não autenticado');
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .insert({
-          name: category.name,
-          type: category.type,
-          user_id: currentUser.id,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('❌ Erro ao adicionar categoria:', error);
-        return;
-      }
-
-      const newCategory: Category = {
-        id: data.id,
-        name: data.name,
-        type: data.type,
-        createdAt: data.created_at,
-      };
-
-      setCategories(prev => [...prev, newCategory]);
-      console.log('✅ Categoria adicionada');
-    } catch (error) {
-      console.error('❌ Erro ao adicionar categoria:', error);
-    }
+  const deleteExpense = (id: string) => {
+    setExpenses(prev => prev.filter(item => item.id !== id));
   };
 
-  const updateExpense = async (id: string, updatedExpense: Partial<Expense>) => {
-    if (!currentUser) {
-      console.error('❌ Usuário não autenticado');
-      return;
-    }
-
-    try {
-      const updateData: any = {};
-      if (updatedExpense.date !== undefined) updateData.date = updatedExpense.date;
-      if (updatedExpense.category !== undefined) updateData.category = updatedExpense.category;
-      if (updatedExpense.description !== undefined) updateData.description = updatedExpense.description;
-      if (updatedExpense.amount !== undefined) updateData.amount = updatedExpense.amount;
-      if (updatedExpense.paymentMethod !== undefined) updateData.payment_method = updatedExpense.paymentMethod;
-      if (updatedExpense.location !== undefined) updateData.location = updatedExpense.location;
-      if (updatedExpense.paid !== undefined) updateData.paid = updatedExpense.paid;
-      if (updatedExpense.isCreditCard !== undefined) updateData.is_credit_card = updatedExpense.isCreditCard;
-      if (updatedExpense.dueDate !== undefined) updateData.due_date = updatedExpense.dueDate;
-
-      const { error } = await supabase
-        .from('expenses')
-        .update(updateData)
-        .eq('id', id)
-        .eq('user_id', currentUser.id);
-
-      if (error) {
-        console.error('❌ Erro ao atualizar despesa:', error);
-        return;
-      }
-
-      setExpenses(prev => prev.map(expense => 
-        expense.id === id ? { ...expense, ...updatedExpense } : expense
-      ));
-      console.log('✅ Despesa atualizada');
-    } catch (error) {
-      console.error('❌ Erro ao atualizar despesa:', error);
-    }
+  const addIncome = (incomeItem: Omit<Income, 'id'>) => {
+    const newIncome: Income = {
+      ...incomeItem,
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      date: formatDateForStorage(incomeItem.date),
+    };
+    setIncome(prev => [...prev, newIncome]);
   };
 
-  const updateIncome = async (id: string, updatedIncome: Partial<Income>) => {
-    if (!currentUser) {
-      console.error('❌ Usuário não autenticado');
-      return;
-    }
-
-    try {
-      const updateData: any = {};
-      if (updatedIncome.date !== undefined) updateData.date = updatedIncome.date;
-      if (updatedIncome.source !== undefined) updateData.source = updatedIncome.source;
-      if (updatedIncome.amount !== undefined) updateData.amount = updatedIncome.amount;
-      if (updatedIncome.notes !== undefined) updateData.notes = updatedIncome.notes;
-      if (updatedIncome.location !== undefined) updateData.location = updatedIncome.location;
-      if (updatedIncome.account !== undefined) updateData.account = updatedIncome.account;
-
-      const { error } = await supabase
-        .from('income')
-        .update(updateData)
-        .eq('id', id)
-        .eq('user_id', currentUser.id);
-
-      if (error) {
-        console.error('❌ Erro ao atualizar receita:', error);
-        return;
-      }
-
-      setIncome(prev => prev.map(income => 
-        income.id === id ? { ...income, ...updatedIncome } : income
-      ));
-      console.log('✅ Receita atualizada');
-    } catch (error) {
-      console.error('❌ Erro ao atualizar receita:', error);
-    }
+  const updateIncome = (id: string, incomeItem: Partial<Income>) => {
+    setIncome(prev => prev.map(item => 
+      item.id === id 
+        ? { 
+            ...item, 
+            ...incomeItem,
+            date: incomeItem.date ? formatDateForStorage(incomeItem.date) : item.date,
+          }
+        : item
+    ));
   };
 
-  const updateCategory = async (id: string, updatedCategory: Partial<Category>) => {
-    if (!currentUser) {
-      console.error('❌ Usuário não autenticado');
-      return;
-    }
-
-    try {
-      const updateData: any = {};
-      if (updatedCategory.name !== undefined) updateData.name = updatedCategory.name;
-      if (updatedCategory.type !== undefined) updateData.type = updatedCategory.type;
-
-      const { error } = await supabase
-        .from('categories')
-        .update(updateData)
-        .eq('id', id)
-        .eq('user_id', currentUser.id);
-
-      if (error) {
-        console.error('❌ Erro ao atualizar categoria:', error);
-        return;
-      }
-
-      setCategories(prev => prev.map(category => 
-        category.id === id ? { ...category, ...updatedCategory } : category
-      ));
-      console.log('✅ Categoria atualizada');
-    } catch (error) {
-      console.error('❌ Erro ao atualizar categoria:', error);
-    }
+  const deleteIncome = (id: string) => {
+    setIncome(prev => prev.filter(item => item.id !== id));
   };
 
-  const deleteExpense = async (id: string) => {
-    if (!currentUser) {
-      console.error('❌ Usuário não autenticado');
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('expenses')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', currentUser.id);
-
-      if (error) {
-        console.error('❌ Erro ao deletar despesa:', error);
-        return;
-      }
-
-      setExpenses(prev => prev.filter(expense => expense.id !== id));
-      console.log('✅ Despesa deletada');
-    } catch (error) {
-      console.error('❌ Erro ao deletar despesa:', error);
-    }
+  const addCategory = (category: Omit<Category, 'id'>) => {
+    const newCategory: Category = {
+      ...category,
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+    };
+    setCategories(prev => [...prev, newCategory]);
   };
 
-  const deleteIncome = async (id: string) => {
-    if (!currentUser) {
-      console.error('❌ Usuário não autenticado');
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('income')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', currentUser.id);
-
-      if (error) {
-        console.error('❌ Erro ao deletar receita:', error);
-        return;
-      }
-
-      setIncome(prev => prev.filter(income => income.id !== id));
-      console.log('✅ Receita deletada');
-    } catch (error) {
-      console.error('❌ Erro ao deletar receita:', error);
-    }
+  const updateCategory = (id: string, category: Partial<Category>) => {
+    setCategories(prev => prev.map(item => 
+      item.id === id ? { ...item, ...category } : item
+    ));
   };
 
-  const deleteCategory = async (id: string) => {
-    if (!currentUser) {
-      console.error('❌ Usuário não autenticado');
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('categories')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', currentUser.id);
-
-      if (error) {
-        console.error('❌ Erro ao deletar categoria:', error);
-        return;
-      }
-
-      setCategories(prev => prev.filter(category => category.id !== id));
-      console.log('✅ Categoria deletada');
-    } catch (error) {
-      console.error('❌ Erro ao deletar categoria:', error);
-    }
+  const deleteCategory = (id: string) => {
+    setCategories(prev => prev.filter(item => item.id !== id));
   };
 
-  const updateFilters = (section: keyof FilterState, newFilters: Partial<FilterState[keyof FilterState]>) => {
+  const updateFilters = (type: 'expenses' | 'income', newFilters: any) => {
     setFilters(prev => ({
       ...prev,
-      [section]: { ...prev[section], ...newFilters }
+      [type]: { ...prev[type], ...newFilters }
     }));
   };
 
   return (
-    <FinanceContext.Provider
-      value={{
-        expenses,
-        income,
-        categories,
-        filters,
-        addExpense,
-        addIncome,
-        addCategory,
-        updateExpense,
-        updateIncome,
-        updateCategory,
-        deleteExpense,
-        deleteIncome,
-        deleteCategory,
-        updateFilters,
-        isLoading,
-      }}
-    >
+    <FinanceContext.Provider value={{
+      expenses,
+      income,
+      categories,
+      addExpense,
+      updateExpense,
+      deleteExpense,
+      addIncome,
+      updateIncome,
+      deleteIncome,
+      addCategory,
+      updateCategory,
+      deleteCategory,
+      filters,
+      updateFilters,
+    }}>
       {children}
     </FinanceContext.Provider>
   );
+};
+
+export const useFinance = () => {
+  const context = useContext(FinanceContext);
+  if (context === undefined) {
+    throw new Error('useFinance must be used within a FinanceProvider');
+  }
+  return context;
 };

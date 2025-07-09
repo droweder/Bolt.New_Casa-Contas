@@ -4,6 +4,7 @@ import { useFinance } from '../context/FinanceContext';
 import { useAccounts } from '../context/AccountContext';
 import { useSettings } from '../context/SettingsContext';
 import { Income } from '../types';
+import { formatDateForInput, formatDateForStorage, getCurrentDateForInput } from '../utils/dateUtils';
 
 interface IncomeFormProps {
   income?: Income | null;
@@ -15,7 +16,7 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ income, onClose }) => {
   const { accounts } = useAccounts();
   const { settings } = useSettings();
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: getCurrentDateForInput(),
     category: '',
     amount: '',
     account: '',
@@ -31,7 +32,7 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ income, onClose }) => {
   useEffect(() => {
     if (income) {
       setFormData({
-        date: income.date,
+        date: formatDateForInput(income.date),
         category: income.source,
         amount: income.amount.toString().replace('.', ','),
         account: income.account || '',
@@ -92,7 +93,7 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ income, onClose }) => {
       // Create multiple recurring incomes
       for (let i = 0; i < formData.totalRecurrences; i++) {
         const incomeData = {
-          date: recurrenceDates[i] || formData.date,
+          date: formatDateForStorage(recurrenceDates[i] || formData.date),
           source: formData.category,
           amount: baseAmount,
           notes: formData.description,
@@ -105,7 +106,7 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ income, onClose }) => {
     } else {
       // Single income or update existing
       const incomeData = {
-        date: formData.date,
+        date: formatDateForStorage(formData.date),
         source: formData.category,
         amount: baseAmount,
         notes: formData.description,

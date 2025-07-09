@@ -17,8 +17,8 @@ const ExpenseList: React.FC = () => {
     if (expenseFilters.account && expense.paymentMethod !== expenseFilters.account) return false;
     if (expenseFilters.description && !expense.description.toLowerCase().includes(expenseFilters.description.toLowerCase())) return false;
     if (expenseFilters.location && !expense.location?.toLowerCase().includes(expenseFilters.location.toLowerCase())) return false;
-    if (expenseFilters.startDate && (expense.dueDate || expense.date) < expenseFilters.startDate) return false;
-    if (expenseFilters.endDate && (expense.dueDate || expense.date) > expenseFilters.endDate) return false;
+    if (expenseFilters.startDate && expense.date < expenseFilters.startDate) return false;
+    if (expenseFilters.endDate && expense.date > expenseFilters.endDate) return false;
     if (expenseFilters.installmentGroup && expense.installmentGroup !== expenseFilters.installmentGroup) return false;
     return true;
   });
@@ -83,7 +83,7 @@ const ExpenseList: React.FC = () => {
     endDate: 'Data Final',
     amount: 'Valor',
     payment: 'Conta',
-    dueDate: 'Vencimento',
+    date: 'Data',
     installment: 'Parcela',
     actions: 'Ações',
     noExpenses: 'Nenhuma despesa encontrada.',
@@ -216,7 +216,7 @@ const ExpenseList: React.FC = () => {
                 <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">{labels.amount}</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">{labels.payment}</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">{labels.installment}</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">{labels.dueDate}</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">{labels.date}</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">{labels.actions}</th>
               </tr>
             </thead>
@@ -294,11 +294,11 @@ const ExpenseList: React.FC = () => {
                             )}
                           </td>
                           <td className="py-3 px-4">
-                            {(expense.dueDate || expense.date) ? (
+                            {expense.date ? (
                               <div className="flex items-center gap-2">
                                 <Calendar className="w-4 h-4 text-gray-400" />
                                 <span className="text-sm text-gray-600 dark:text-gray-400">
-                                  {formatDate(expense.dueDate || expense.date)}
+                                  {formatDate(expense.date)}
                                 </span>
                               </div>
                             ) : (

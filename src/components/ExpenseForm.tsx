@@ -41,10 +41,6 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
         isInstallment: expense.isInstallment || false,
         totalInstallments: expense.totalInstallments || 1,
       });
-
-      if (expense.isInstallment && expense.dueDate) {
-        setInstallmentDates([expense.dueDate]);
-      }
     }
   }, [expense]);
 
@@ -110,9 +106,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
           installmentNumber: i + 1,
           totalInstallments: formData.totalInstallments,
           installmentGroup: installmentGroup,
-          dueDate: installmentDates[i] || formData.date,
           isCreditCard: formData.isCreditCard,
-          paid: false,
         };
 
         addExpense(expenseData);
@@ -130,9 +124,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
         installmentNumber: expense?.installmentNumber,
         totalInstallments: expense?.totalInstallments,
         installmentGroup: expense?.installmentGroup,
-        dueDate: formData.isInstallment ? installmentDates[0] : formData.date,
         isCreditCard: formData.isCreditCard,
-        paid: expense?.paid || false,
       };
 
       if (expense) {
@@ -158,7 +150,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onClose }) => {
     creditCard: 'Cartão de Crédito',
     installment: 'Parcelar esta despesa',
     installments: 'Número de Parcelas',
-    dueDates: 'Datas de Vencimento das Parcelas',
+    dueDates: 'Datas das Parcelas',
     cancel: 'Cancelar',
     save: expense ? 'Atualizar' : 'Adicionar',
     perInstallment: 'Valor por parcela',

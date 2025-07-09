@@ -1,102 +1,69 @@
 export interface Expense {
   id: string;
-  date: string; // Data da despesa
+  date: string; // Stored in YYYY-MM-DD format
   category: string;
   description: string;
   amount: number;
   paymentMethod: string;
-  createdAt: string;
-  location?: string; // Local/pessoa da despesa
-  paid?: boolean; // Status de pagamento
-  // Installment fields
+  location?: string;
   isInstallment?: boolean;
   installmentNumber?: number;
   totalInstallments?: number;
-  installmentGroup?: string; // To group related installments
-  dueDate?: string; // Individual due date for each installment
-  isCreditCard?: boolean; // Credit card flag
+  installmentGroup?: string;
+  dueDate?: string; // Stored in YYYY-MM-DD format
+  isCreditCard?: boolean;
+  paid?: boolean;
 }
 
 export interface Income {
   id: string;
-  date: string;
+  date: string; // Stored in YYYY-MM-DD format
   source: string;
   amount: number;
-  notes: string;
-  createdAt: string;
-  location?: string; // Local/pessoa da receita
-  account?: string; // Conta que recebeu a receita
+  notes?: string;
+  location?: string;
+  account?: string;
 }
 
 export interface Category {
   id: string;
   name: string;
   type: 'income' | 'expense';
-  createdAt: string;
-}
-
-export interface MonthlyData {
-  month: string;
-  totalIncome: number;
-  totalExpenses: number;
-  balance: number;
-}
-
-export interface User {
-  id: string;
-  username: string;
-  password: string;
-  isAdmin: boolean;
-  createdAt: string;
+  color?: string;
 }
 
 export interface Account {
   id: string;
   name: string;
-  initialBalance: number;
-  createdAt: string;
+  type: 'checking' | 'savings' | 'credit' | 'investment';
+  balance: number;
+  currency: string;
 }
 
-export interface AppSettings {
-  theme: 'light' | 'dark';
-  language: 'pt-BR' | 'en-US';
-  currency: 'BRL' | 'USD';
+export interface Transaction {
+  id: string;
+  date: string; // Stored in YYYY-MM-DD format
+  type: 'income' | 'expense' | 'transfer';
+  amount: number;
+  description: string;
+  category?: string;
+  account: string;
+  toAccount?: string; // For transfers
 }
 
-export interface DailyAccountSummary {
-  date: string;
-  accounts: {
-    [accountId: string]: {
-      dailyExpenses: number;
-      finalBalance: number;
-    };
-  };
-  totalDailyBalance: number;
+export interface Budget {
+  id: string;
+  category: string;
+  amount: number;
+  period: 'monthly' | 'yearly';
+  spent: number;
 }
 
-export interface FilterState {
-  expenses: {
-    category: string;
-    account: string;
-    description: string;
-    location: string;
-    startDate: string;
-    endDate: string;
-    installmentGroup: string;
-  };
-  income: {
-    source: string;
-    account: string;
-    description?: string;
-    location?: string;
-    startDate: string;
-    endDate: string;
-  };
-  dailySummary: {
-    startDate: string;
-    endDate: string;
-    visibleAccounts: string[];
-    sortBy: 'date' | 'balance';
-    sortOrder: 'asc' | 'desc';
-  };
+export interface Goal {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  targetDate: string; // Stored in YYYY-MM-DD format
+  description?: string;
 }

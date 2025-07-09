@@ -31,7 +31,7 @@ const ImportCSV: React.FC<ImportCSVProps> = ({ onClose }) => {
   const [showValidation, setShowValidation] = useState(false);
   const [results, setResults] = useState<{ success: number; errors: string[]; warnings: string[] } | null>(null);
 
-  const expenseTemplate = `Date,Category,Description,Amount,PaymentMethod,Location,Paid,Installments,InstallmentNumber,DueDate,IsCreditCard
+  const expenseTemplate = `Date,Category,Description,Amount,PaymentMethod,Location,Installments,InstallmentNumber,IsCreditCard
 2025-01-15,Alimentação,Almoço no restaurante,45.50,Cartão de Crédito,Restaurante ABC,1,1,true
 2025-01-14,Transporte,Uber para trabalho,18.90,Pix,Centro da cidade,1,1,false
 2025-02-13,Compras,Compras parceladas,360.00,Cartão de Crédito,Shopping XYZ,3,1,true
@@ -144,8 +144,6 @@ const ImportCSV: React.FC<ImportCSVProps> = ({ onClose }) => {
           errors.push(`Número da parcela inválido: ${row.InstallmentNumber}`);
         }
       }
-
-      // Due date validation
 
     } else {
       // Income validation
@@ -410,7 +408,7 @@ const ImportCSV: React.FC<ImportCSVProps> = ({ onClose }) => {
                     <li>• Valores monetários podem usar vírgula ou ponto decimal</li>
                     <li>• Para campos booleanos: use true/false, sim/não, ou 1/0</li>
                     <li>• Para parcelas: Installments = número total, InstallmentNumber = parcela atual</li>
-                    <li>• Para parcelas, use a data de vencimento de cada parcela no campo Date</li>
+                    <li>• Para parcelas, use a data de cada parcela no campo Date</li>
                     <li>• Categorias e contas inexistentes serão sinalizadas como avisos</li>
                     <li>• Use aspas duplas para campos que contenham vírgulas</li>
                   </ul>
